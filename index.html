@@ -184,6 +184,10 @@ main{grid-area:m;display:flex;flex-direction:column;gap:12px;min-width:0;positio
         <label class="f"><span class="row">Tamanho da imagem <output id="o-scale"></output></span>
           <input id="scale" type="range" min="0.2" max="3" step="0.01" value="1"></label>
         <label class="check"><input id="invert" type="checkbox"> Inverter (foto com fundo claro)</label>
+        <label class="check"><input id="rmbg" type="checkbox"> Remover fundo automaticamente</label>
+        <label class="f"><span class="row">Tolerância do fundo <output id="o-bgtol"></output></span>
+          <input id="bgtol" type="range" min="0.02" max="0.6" step="0.01" value="0.18"></label>
+        <p class="hint" style="margin:0">Funciona melhor com fundo de cor uniforme. Aumente a tolerância se sobrar fundo.</p>
         <div class="two">
           <button class="btn sm" id="centerImg">Centralizar foto</button>
           <button class="btn sm" id="removeImg">Remover foto</button>
@@ -247,6 +251,26 @@ main{grid-area:m;display:flex;flex-direction:column;gap:12px;min-width:0;positio
     </details>
 
     <details class="group" open>
+      <summary>Gradiente</summary>
+      <div class="body">
+        <label class="check"><input id="grad" type="checkbox"> Usar gradiente nos caracteres</label>
+        <div class="two">
+          <label class="f">Tipo
+            <select id="gradType"><option value="linear">Linear</option><option value="radial">Radial</option></select></label>
+          <label class="f"><span class="row">Ângulo <output id="o-gradAng"></output></span>
+            <input id="gradAng" type="range" min="0" max="360" step="1" value="90"></label>
+        </div>
+        <div class="three">
+          <label class="f">Início <input id="gradA" type="color" value="#ff6ad5"></label>
+          <label class="f">Fim <input id="gradB" type="color" value="#6affe9"></label>
+          <label class="f">Meio <input id="gradC" type="color" value="#d9ff6a"></label>
+        </div>
+        <label class="check"><input id="gradMid" type="checkbox"> Usar a cor do meio</label>
+        <p class="hint" style="margin:0">Com gradiente ativo, ele substitui a cor do ASCII e as cores da foto.</p>
+      </div>
+    </details>
+
+    <details class="group" open>
       <summary>Animação <button class="btn sm sbtn" id="play">Pausar</button></summary>
       <div class="body">
         <div class="fx" id="fx">
@@ -271,6 +295,9 @@ main{grid-area:m;display:flex;flex-direction:column;gap:12px;min-width:0;positio
       <div class="body">
         <label class="f">Tamanho do PNG
           <select id="expScale"></select></label>
+        <label class="f">Formato do vídeo
+          <select id="vfmt"><option value="mp4">MP4 (recomendado)</option><option value="webm">WebM</option></select>
+        </label>
         <label class="f">Duração do vídeo
           <select id="vdur">
             <option value="4">4 segundos</option>
@@ -481,11 +508,12 @@ $('centerImg').addEventListener('click',()=>{ markTouched(); st.imgPos={x:.5,y:.
 $('removeImg').addEventListener('click',()=>{ markTouched(); st.img=null; draw(); setStatus('Foto removida.'); });
 
 /* ---------- controles globais ---------- */
-const ctrls=['speed','amp','scale','cols','lh','bright','contrast','thresh','noise'];
-const fmt={speed:v=>(+v).toFixed(2)+'×',amp:v=>Math.round(v*100)+'%',scale:v=>Math.round(v*100)+'%',cols:v=>v,lh:v=>(+v).toFixed(2),bright:v=>(v>0?'+':'')+Math.round(v*100),contrast:v=>(+v).toFixed(2),thresh:v=>Math.round(v*100)+'%',noise:v=>Math.round(v*100)+'%'};
+const ctrls=['speed','amp','scale','cols','lh','bright','contrast','thresh','noise','bgtol','gradAng'];
+const fmt={bgtol:v=>Math.round(v*100)+'%',gradAng:v=>Math.round(v)+'°',speed:v=>(+v).toFixed(2)+'×',amp:v=>Math.round(v*100)+'%',scale:v=>Math.round(v*100)+'%',cols:v=>v,lh:v=>(+v).toFixed(2),bright:v=>(v>0?'+':'')+Math.round(v*100),contrast:v=>(+v).toFixed(2),thresh:v=>Math.round(v*100)+'%',noise:v=>Math.round(v*100)+'%'};
 function syncOut(id){ const o=$('o-'+id); if(o) o.textContent=fmt[id]($(id).value); }
 ctrls.forEach(id=>{ syncOut(id); $(id).addEventListener('input',()=>{syncOut(id);draw();}); });
 ['invert','fade','colorful','c-bg','c-fg','custom','autosort','fillText','flowInside','skipSpaces'].forEach(id=>$(id).addEventListener('input',draw));
+['rmbg','grad','gradMid','gradType','vfmt','gradA','gradB','gradC'].forEach(id=>$(id).addEventListener('change',draw));
 $('preset').addEventListener('change',()=>{ $('custom').value=$('preset').value; draw(); });
 $('mode').addEventListener('click',e=>{
   const b=e.target.closest('button'); if(!b) return;
@@ -512,6 +540,38 @@ function fillChars(){
   let t=$('fillText').value.replace(/\s+/g,' ');
   if($('skipSpaces').checked) t=t.replace(/ /g,'');
   const a=[...t]; return a.length?a:['#'];
+}
+function bgMask(d,cols,rows,tol,rc){
+  // rc = retângulo da foto em células; só as bordas DA FOTO definem a cor do fundo
+  const n=cols*rows, isBg=new Uint8Array(n), q=new Int32Array(n); let qh=0,qt=0;
+  const x0=rc.x0,x1=rc.x1-1,y0=rc.y0,y1=rc.y1-1;
+  const er=[],eg=[],eb=[];
+  const edge=i=>{ er.push(d[i*4]); eg.push(d[i*4+1]); eb.push(d[i*4+2]); };
+  for(let x=x0;x<=x1;x++){ edge(y0*cols+x); edge(y1*cols+x); }
+  for(let y=y0;y<=y1;y++){ edge(y*cols+x0); edge(y*cols+x1); }
+  const med=a=>{ a.sort((p,r)=>p-r); return a[a.length>>1]; };
+  const R=med(er), G=med(eg), B=med(eb);
+  const near=i=>{ const dr=d[i*4]-R, dg=d[i*4+1]-G, db=d[i*4+2]-B; return Math.sqrt(dr*dr+dg*dg+db*db)/441 < tol; };
+  const push=i=>{ if(!isBg[i] && near(i)){ isBg[i]=1; q[qt++]=i; } };
+  for(let x=x0;x<=x1;x++){ push(y0*cols+x); push(y1*cols+x); }
+  for(let y=y0;y<=y1;y++){ push(y*cols+x0); push(y*cols+x1); }
+  while(qh<qt){
+    const i=q[qh++], x=i%cols, y=(i-x)/cols;
+    if(x>x0) push(i-1); if(x<x1) push(i+1); if(y>y0) push(i-cols); if(y<y1) push(i+cols);
+  }
+  const mask=new Uint8Array(n); for(let i=0;i<n;i++) mask[i]=isBg[i]?0:1;
+  return mask;
+}
+function hexRgb(h){ return [parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)]; }
+function gradLUT(){
+  const stops=[$('gradA').value,$('gradB').value]; if($('gradMid').checked) stops.splice(1,0,$('gradC').value);
+  const key=stops.join(); if(gradLUT.key===key) return gradLUT.lut;
+  const cs=stops.map(hexRgb), lut=[];
+  for(let i=0;i<256;i++){
+    const t=i/255*(cs.length-1), k=Math.min(cs.length-2,Math.floor(t)), f=t-k, a=cs[k], b=cs[k+1];
+    lut.push(`rgb(${Math.round(a[0]+(b[0]-a[0])*f)},${Math.round(a[1]+(b[1]-a[1])*f)},${Math.round(a[2]+(b[2]-a[2])*f)})`);
+  }
+  gradLUT.key=key; gradLUT.lut=lut; return lut;
 }
 function fxOn(){ return [...$('fx').querySelectorAll('input:checked')].map(i=>i.value); }
 function hash(x,y){ let h=(x*374761393+y*668265263)|0; h=(h^(h>>>13))*1274126177|0; return ((h^(h>>>16))>>>0)/4294967295; }
@@ -588,6 +648,23 @@ function render(cv,k,T,ui,scene){
       render.data=oc.getImageData(0,0,cols,rows).data; render.key=key;
     }
     const d=render.data;
+    const rm=$('rmbg').checked;
+    if(rm){
+      const mk=key+'|'+(+$('bgtol').value);
+      if(render.mkey!==mk){
+        const rc={x0:Math.max(0,Math.floor(ix/cw)),y0:Math.max(0,Math.floor(iy/rh)),x1:Math.min(cols,Math.ceil((ix+iw)/cw)),y1:Math.min(rows,Math.ceil((iy+ih)/rh))};
+        render.mask=bgMask(d,cols,rows,+$('bgtol').value,rc); render.mkey=mk;
+      }
+    }
+    const mask=rm?render.mask:null;
+    const gOn=$('grad').checked, gLut=gOn?gradLUT():null, gType=$('gradType').value, gAng=+$('gradAng').value*Math.PI/180;
+    const gCs=Math.cos(gAng), gSn=Math.sin(gAng), gExt=(Math.abs(gCs)+Math.abs(gSn))/2||1, gRad=Math.hypot(w,h)/2;
+    const gIdx=(x,y)=>{
+      const X=x*cw+cw/2, Y=y*rh+rh/2; let t;
+      if(gType==='radial') t=Math.hypot(X-w/2,Y-h/2)/gRad;
+      else t=((X/w-.5)*gCs+(Y/h-.5)*gSn+gExt)/(2*gExt);
+      return Math.max(0,Math.min(255,Math.round(t*255)));
+    };
     const anim=T!=null, F={}, amp=+$('amp').value; if(anim) fxOn().forEach(f=>F[f]=1);
     const tick=anim?Math.floor(T*6):0, breathe=F.breathe?Math.sin(T*1.6)*amp*0.28:0;
     const flowOff=F.flow?Math.floor(T*10):0, driftY=F.drift?T*0.6:0;
@@ -599,6 +676,7 @@ function render(cv,k,T,ui,scene){
     for(let y=0;y<rows;y++){
       for(let x=0;x<cols;x++){
         const i=(y*cols+x)*4;
+        if(mask && !mask[y*cols+x]) continue;
         let v=(0.299*d[i]+0.587*d[i+1]+0.114*d[i+2])/255;
         if(inv) v=1-v;
         v=(v-0.5)*ct+0.5+br;
@@ -617,7 +695,7 @@ function render(cv,k,T,ui,scene){
         else { let ci=Math.round(v*(n-1)); if(F.flow) ci+=Math.floor(T*4+x*0.15+y*0.1)%3-1; ch=cs[Math.min(n-1,Math.max(1,ci))]; }
         if(F.scramble && hash(x*31+tick,y*17+tick*7)<amp*0.35){ const pool=textMode?fc:cs; ch=pool[1+Math.floor(hash(x+tick,y)*(pool.length-1))]||ch; }
         if(ch===' ') continue;
-        if(colorful) c.fillStyle=`rgb(${d[i]},${d[i+1]},${d[i+2]})`;
+        if(gOn) c.fillStyle=gLut[gIdx(x,y)]; else if(colorful) c.fillStyle=`rgb(${d[i]},${d[i+1]},${d[i+2]})`;
         c.globalAlpha=(fade?0.35+0.65*v:1)*al;
         const dy=F.drift?Math.sin(driftY+x*0.12+hh*2)*rh*amp*0.6:0;
         c.fillText(ch,x*cw,y*rh+dy);
@@ -818,7 +896,8 @@ pv.addEventListener('dblclick',e=>{ const H=hit(toP(e)); if(H.L){ const ta=$('p-
 
 document.addEventListener('keydown',e=>{
   const mod=e.ctrlKey||e.metaKey, kk=(e.key||'').toLowerCase();
-  const inField=!!(e.target.closest&&e.target.closest('input,textarea,select'));
+  // só campos de texto usam o Ctrl+Z nativo; checkboxes, sliders e selects desfazem o projeto
+  const inField=!!(e.target.matches&&e.target.matches('textarea, input[type=text], input[type=number], input:not([type]), [contenteditable]'));
   if(mod && $('np').hidden){
     if(kk==='s'){ e.preventDefault(); $('btnSave').click(); return; }
     if(!inField && kk==='z'){ e.preventDefault(); if(e.shiftKey) redo(); else undo(); return; }
@@ -960,7 +1039,7 @@ function projectChanged(){
 }
 
 /* ---------- desfazer / refazer ---------- */
-const SET_IDS=['scale','cols','lh','bright','contrast','thresh','noise','speed','amp','vdur','expScale','custom','fillText','c-fg','c-bg','invert','fade','colorful','autosort','flowInside','skipSpaces'];
+const SET_IDS=['scale','cols','lh','bright','contrast','thresh','noise','speed','amp','vdur','expScale','custom','fillText','c-fg','c-bg','invert','fade','colorful','autosort','flowInside','skipSpaces','rmbg','bgtol','grad','gradType','gradAng','gradA','gradB','gradC','gradMid','vfmt'];
 let imgSeq=0;
 const hist={undo:[],redo:[],cur:null,curKey:undefined,timer:0,restoring:false};
 function readSettings(){
@@ -1099,8 +1178,11 @@ $('saveVideo').addEventListener('click',async()=>{
   if(st.rec) return;
   if(!fxOn().length){ setStatus('Ative ao menos um efeito de animação.'); return; }
   if(!window.MediaRecorder||!pv.captureStream){ setStatus('Este navegador não grava vídeo.'); return; }
-  const type=['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm','video/mp4'].find(t=>MediaRecorder.isTypeSupported(t));
+  const want=$('vfmt').value;
+  const mp4T=['video/mp4;codecs=avc1','video/mp4'], webmT=['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'];
+  const type=(want==='mp4'?[...mp4T,...webmT]:[...webmT,...mp4T]).find(t=>MediaRecorder.isTypeSupported(t));
   if(!type){ setStatus('Este navegador não grava vídeo.'); return; }
+  const fellBack=want==='mp4'&&!type.startsWith('video/mp4');
   const wasPlaying=st.playing; st.playing=true; syncPlay();
   const stream=pv.captureStream(30), chunks=[];
   const rec=new MediaRecorder(stream,{mimeType:type,videoBitsPerSecond:10_000_000});
@@ -1112,7 +1194,8 @@ $('saveVideo').addEventListener('click',async()=>{
   await new Promise(r=>setTimeout(r,dur*1000));
   rec.stop(); await done; clearInterval(iv);
   st.rec=false; $('saveVideo').disabled=false; st.playing=wasPlaying; syncPlay(); draw();
-  offer(new Blob(chunks,{type:type.split(';')[0]}),slug()+'.'+(type.includes('mp4')?'mp4':'webm'),'video');
+  await offer(new Blob(chunks,{type:type.split(';')[0]}),slug()+'.'+(type.startsWith('video/mp4')?'mp4':'webm'),'video');
+  if(fellBack) setStatus('Este navegador não grava MP4. O vídeo foi salvo em WebM.');
 });
 
 /* ---------- fontes ---------- */
