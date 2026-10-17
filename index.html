@@ -295,6 +295,7 @@ main{grid-area:m;display:flex;flex-direction:column;gap:12px;min-width:0;positio
           <label class="check"><input type="checkbox" value="flow"> Texto corrente</label>
           <label class="check"><input type="checkbox" value="rot3d"> Giro 3D (imagens, 2D)</label>
           <label class="check"><input type="checkbox" value="sway3d"> Balanço 3D (volume)</label>
+          <label class="check"><input type="checkbox" value="spin360"> Girar 360° em loop (volume)</label>
         </div>
         <label class="check"><input id="vol3d" type="checkbox"> Volume 3D com WebGL (imagens com relevo)</label>
         <div class="props" id="volOpts" hidden>
@@ -323,6 +324,9 @@ main{grid-area:m;display:flex;flex-direction:column;gap:12px;min-width:0;positio
           <select id="expScale"></select></label>
         <label class="f">Formato do vídeo
           <select id="vfmt"><option value="mp4">MP4 (recomendado)</option><option value="webm">WebM</option></select>
+        </label>
+        <label class="f">Resolução do vídeo
+          <select id="vres"><option value="1080">Full HD (1080 px)</option><option value="1440" selected>2K (1440 px)</option><option value="2160">4K (2160 px)</option></select>
         </label>
         <label class="f">Duração do vídeo
           <select id="vdur">
@@ -780,6 +784,7 @@ function asciiPass(c,ps,k,w,h,T){
 /* ---------- volume 3D com WebGL 2 ---------- */
 // cada célula vira uma pilha de quads (camadas) com a letra; o brilho define o relevo
 const AT={tw:128,th:214,cols:16,rows:8};
+const SPIN_P=10; // unidades de tempo por volta de 360° (com velocidade 1× dá ~12 s)
 const VOL={ok:undefined,cv:null,gl:null,prog:null,vao:null,ibuf:null,tex:null,map:new Map(),dirty:true,buf:new Float32Array(13*4096),U:{}};
 function volInit(){
   if(VOL.ok!==undefined) return VOL.ok;
@@ -873,9 +878,11 @@ function volumeDraw(c,passes,w,h,k,T){
   gl.viewport(0,0,cwid,chei); gl.clearColor(0,0,0,0); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
   gl.useProgram(VOL.prog); gl.bindVertexArray(VOL.vao);
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,VOL.tex); gl.uniform1i(U.uTex,0);
-  const sway=(T!=null&&FX.includes('sway3d'))?Math.sin(T*0.6)*0.5:0;
+  const spinOn=T!=null&&FX.includes('spin360');
+  const sway=(T!=null&&FX.includes('sway3d')&&!spinOn)?Math.sin(T*0.6)*0.5:0;
+  const spin=spinOn?2*Math.PI*T/SPIN_P:0;
   gl.uniform2f(U.uHalf,w/2,h/2);
-  gl.uniform1f(U.uYaw,(+$('vYaw').value)*Math.PI/180+sway);
+  gl.uniform1f(U.uYaw,(+$('vYaw').value)*Math.PI/180+sway+spin);
   gl.uniform1f(U.uPitch,(+$('vPitch').value)*Math.PI/180);
   gl.uniform1f(U.uFocal,w*1.4); gl.uniform1f(U.uZR,w*1.5);
   gl.bindBuffer(gl.ARRAY_BUFFER,VOL.ibuf); gl.bufferData(gl.ARRAY_BUFFER,buf.subarray(0,n*13),gl.DYNAMIC_DRAW);
@@ -926,13 +933,14 @@ function animating(){ return st.playing && animOn(); }
 function draw(){ if(animating()) return; cancelAnimationFrame(raf); raf=requestAnimationFrame(()=>render(pv,pk(),animOn()?st.t:null,true)); }
 function loop(now){
   const dt=Math.min(0.1,(now-lastT)/1000); lastT=now;
-  if(animating()){ st.t+=dt*(+$('speed').value); if(now-lastFrame>=32||st.rec){ lastFrame=now; render(pv,pk(),st.t,!st.rec); } }
+  // durante a gravação o preview fica parado: o vídeo é renderizado em outro canvas, e assim não há disputa de CPU/GPU
+  if(animating()&&!st.rec){ st.t+=dt*(+$('speed').value); if(now-lastFrame>=32){ lastFrame=now; render(pv,pk(),st.t,true); } }
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
 function syncPlay(){ $('play').textContent=st.playing?'Pausar':'Animar'; }
 $('play').addEventListener('click',e=>{ e.preventDefault(); e.stopPropagation(); st.playing=!st.playing; syncPlay(); draw(); });
-$('fx').addEventListener('change',()=>{ refreshFx(); draw(); });
+$('fx').addEventListener('change',()=>{ refreshFx(); if(FX.includes('spin360')&&!$('vol3d').checked){ $('vol3d').checked=true; $('volOpts').hidden=false; } draw(); });
 $('vol3d').addEventListener('change',()=>{ $('volOpts').hidden=!$('vol3d').checked; draw(); });
 syncPlay();
 
@@ -1293,7 +1301,7 @@ function projectChanged(){
 }
 
 /* ---------- desfazer / refazer ---------- */
-const SET_IDS=['vol3d','vYaw','vPitch','vDep','vLayers','scale','cols','lh','bright','contrast','thresh','noise','speed','amp','vdur','expScale','custom','fillText','c-fg','c-bg','invert','fade','colorful','autosort','flowInside','skipSpaces','rmbg','bgtol','grad','gradType','gradAng','gradA','gradB','gradC','gradMid','vfmt'];
+const SET_IDS=['vres','vol3d','vYaw','vPitch','vDep','vLayers','scale','cols','lh','bright','contrast','thresh','noise','speed','amp','vdur','expScale','custom','fillText','c-fg','c-bg','invert','fade','colorful','autosort','flowInside','skipSpaces','rmbg','bgtol','grad','gradType','gradAng','gradA','gradB','gradC','gradMid','vfmt'];
 let imgSeq=0;
 const hist={undo:[],redo:[],cur:null,curKey:undefined,timer:0,restoring:false};
 function readSettings(){
@@ -1442,15 +1450,28 @@ $('saveVideo').addEventListener('click',async()=>{
   if(!type){ setStatus('Este navegador não grava vídeo.'); return; }
   const fellBack=want==='mp4'&&!type.startsWith('video/mp4');
   const wasPlaying=st.playing; st.playing=true; syncPlay();
-  const stream=pv.captureStream(30), chunks=[];
-  const rec=new MediaRecorder(stream,{mimeType:type,videoBitsPerSecond:10_000_000});
+  const dur=+$('vdur').value, target=+$('vres').value, k=target/Math.max(P.w,P.h);
+  const rc=document.createElement('canvas'); rc.width=Math.round(P.w*k); rc.height=Math.round(P.h*k);
+  rc.style.cssText='position:fixed;left:-10000px;top:0;pointer-events:none'; document.body.appendChild(rc);
+  const stream=rc.captureStream(0), track=stream.getVideoTracks()[0], chunks=[];
+  const bps=target>=2160?25e6:target>=1440?14e6:8e6;
+  const rec=new MediaRecorder(stream,{mimeType:type,videoBitsPerSecond:bps});
   rec.ondataavailable=e=>{ if(e.data.size) chunks.push(e.data); };
   const done=new Promise(r=>rec.onstop=r);
+  const spin=FX.includes('spin360'), t00=st.t, sp=+$('speed').value, FPS=30, N=Math.round(dur*FPS);
+  // quadros com tempo fixo (i/FPS), não pelo relógio: o vídeo sai com a duração certa e o giro de 360° fecha o loop
+  // mesmo que a máquina renderize devagar
   st.rec=true; $('saveVideo').disabled=true; rec.start(250);
-  const dur=+$('vdur').value, t0=performance.now();
-  const iv=setInterval(()=>setStatus('Gravando… '+Math.max(0,Math.ceil(dur-(performance.now()-t0)/1000))+' s'),250);
-  await new Promise(r=>setTimeout(r,dur*1000));
-  rec.stop(); await done; clearInterval(iv);
+  const iv=setInterval(()=>setStatus('Gravando em '+target+' px… '+Math.round(dur*(i/N))+'/'+dur+' s'),250);
+  let i=0; const tStart=performance.now();
+  for(;i<=N;i++){
+    // cada quadro é capturado no seu instante (i/FPS): se a máquina acompanha, a duração sai exata
+    const wait=tStart+i*1000/FPS-performance.now();
+    await new Promise(r=>setTimeout(r,Math.max(0,wait)));
+    render(rc,k,spin?(i/N)*SPIN_P:t00+(i/FPS)*sp,false);
+    if(track.requestFrame) track.requestFrame();
+  }
+  rec.stop(); await done; clearInterval(iv); rc.remove();
   st.rec=false; $('saveVideo').disabled=false; st.playing=wasPlaying; syncPlay(); draw();
   await offer(new Blob(chunks,{type:type.split(';')[0]}),slug()+'.'+(type.startsWith('video/mp4')?'mp4':'webm'),'video');
   if(fellBack) setStatus('Este navegador não grava MP4. O vídeo foi salvo em WebM.');
