@@ -293,7 +293,19 @@ main{grid-area:m;display:flex;flex-direction:column;gap:12px;min-width:0;positio
           <label class="check"><input type="checkbox" value="scramble"> Embaralhar</label>
           <label class="check"><input type="checkbox" value="drift"> Deslizar</label>
           <label class="check"><input type="checkbox" value="flow"> Texto corrente</label>
-          <label class="check"><input type="checkbox" value="rot3d"> Giro 3D (imagens)</label>
+          <label class="check"><input type="checkbox" value="rot3d"> Giro 3D (imagens, 2D)</label>
+          <label class="check"><input type="checkbox" value="sway3d"> Balanço 3D (volume)</label>
+        </div>
+        <label class="check"><input id="vol3d" type="checkbox"> Volume 3D com WebGL (imagens com relevo)</label>
+        <div class="props" id="volOpts" hidden>
+          <label class="f"><span class="row">Girar <output id="o-vYaw"></output></span>
+            <input id="vYaw" type="range" min="-70" max="70" step="1" value="0"></label>
+          <label class="f"><span class="row">Inclinar <output id="o-vPitch"></output></span>
+            <input id="vPitch" type="range" min="-50" max="50" step="1" value="-8"></label>
+          <label class="f"><span class="row">Relevo (brilho vira profundidade) <output id="o-vDep"></output></span>
+            <input id="vDep" type="range" min="0" max="1" step="0.01" value="0.6"></label>
+          <label class="f"><span class="row">Espessura (camadas) <output id="o-vLayers"></output></span>
+            <input id="vLayers" type="range" min="1" max="8" step="1" value="4"></label>
         </div>
         <div class="two">
           <label class="f"><span class="row">Velocidade <output id="o-speed"></output></span>
@@ -524,8 +536,8 @@ $('centerImg').addEventListener('click',()=>{ markTouched(); st.imgPos={x:.5,y:.
 $('removeImg').addEventListener('click',()=>{ markTouched(); st.img=null; draw(); setStatus('Foto removida.'); });
 
 /* ---------- controles globais ---------- */
-const ctrls=['speed','amp','scale','cols','lh','bright','contrast','thresh','noise','bgtol','gradAng'];
-const fmt={bgtol:v=>Math.round(v*100)+'%',gradAng:v=>Math.round(v)+'°',speed:v=>(+v).toFixed(2)+'×',amp:v=>Math.round(v*100)+'%',scale:v=>Math.round(v*100)+'%',cols:v=>v,lh:v=>(+v).toFixed(2),bright:v=>(v>0?'+':'')+Math.round(v*100),contrast:v=>(+v).toFixed(2),thresh:v=>Math.round(v*100)+'%',noise:v=>Math.round(v*100)+'%'};
+const ctrls=['speed','amp','scale','cols','lh','bright','contrast','thresh','noise','bgtol','gradAng','vYaw','vPitch','vDep','vLayers'];
+const fmt={vYaw:v=>Math.round(v)+'°',vPitch:v=>Math.round(v)+'°',vDep:v=>Math.round(v*100)+'%',vLayers:v=>Math.round(v),bgtol:v=>Math.round(v*100)+'%',gradAng:v=>Math.round(v)+'°',speed:v=>(+v).toFixed(2)+'×',amp:v=>Math.round(v*100)+'%',scale:v=>Math.round(v*100)+'%',cols:v=>v,lh:v=>(+v).toFixed(2),bright:v=>(v>0?'+':'')+Math.round(v*100),contrast:v=>(+v).toFixed(2),thresh:v=>Math.round(v*100)+'%',noise:v=>Math.round(v*100)+'%'};
 function syncOut(id){ const o=$('o-'+id); if(o) o.textContent=fmt[id]($(id).value); }
 ctrls.forEach(id=>{ syncOut(id); $(id).addEventListener('input',()=>{syncOut(id);draw();}); });
 ['invert','fade','colorful','c-bg','c-fg','custom','autosort','fillText','flowInside','skipSpaces'].forEach(id=>$(id).addEventListener('input',draw));
@@ -581,15 +593,21 @@ function bgMask(d,cols,rows,tol,rc){
 function hexRgb(h){ return [parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)]; }
 function gradLUT(){
   const stops=[$('gradA').value,$('gradB').value]; if($('gradMid').checked) stops.splice(1,0,$('gradC').value);
-  const key=stops.join(); if(gradLUT.key===key) return gradLUT.lut;
-  const cs=stops.map(hexRgb), lut=[];
+  const key=stops.join(); if(gradLUT.key===key) return gradLUT.rgb;
+  const cs=stops.map(hexRgb), rgb=[];
   for(let i=0;i<256;i++){
     const t=i/255*(cs.length-1), k=Math.min(cs.length-2,Math.floor(t)), f=t-k, a=cs[k], b=cs[k+1];
-    lut.push(`rgb(${Math.round(a[0]+(b[0]-a[0])*f)},${Math.round(a[1]+(b[1]-a[1])*f)},${Math.round(a[2]+(b[2]-a[2])*f)})`);
+    rgb.push([Math.round(a[0]+(b[0]-a[0])*f),Math.round(a[1]+(b[1]-a[1])*f),Math.round(a[2]+(b[2]-a[2])*f)]);
   }
-  gradLUT.key=key; gradLUT.lut=lut; return lut;
+  gradLUT.key=key; gradLUT.rgb=rgb; return rgb;
 }
-function fxOn(){ return [...$('fx').querySelectorAll('input:checked')].map(i=>i.value); }
+// efeitos ativos são lidos uma vez por mudança (não a cada célula/quadro)
+let FX=[];
+function refreshFx(){ FX=[...$('fx').querySelectorAll('input:checked')].map(i=>i.value); }
+function fxOn(){ return FX; }
+let CS={key:null,val:null}, FC={key:null,val:null};
+function charsetC(){ const k=$('custom').value+'\u0001'+$('autosort').checked; if(CS.key!==k){ CS.key=k; CS.val=charset(); } return CS.val; }
+function fillCharsC(){ const k=$('fillText').value+'\u0001'+$('skipSpaces').checked; if(FC.key!==k){ FC.key=k; FC.val=fillChars(); } return FC.val; }
 function hash(x,y){ let h=(x*374761393+y*668265263)|0; h=(h^(h>>>13))*1274126177|0; return ((h^(h>>>16))>>>0)/4294967295; }
 
 /* ---------- texto ---------- */
@@ -631,7 +649,7 @@ function drawLayer(c,L,T){
 }
 function paintLayer(c,L,g,T,fx,dx,dy,al,color){
   c.save(); c.translate(L.x+dx,L.y+dy); c.rotate(L.rot*Math.PI/180);
-  c.globalAlpha=al; c.fillStyle=color; c.textBaseline='alphabetic';
+  c.globalAlpha=al; c.fillStyle=color; c.textBaseline='alphabetic'; c.textAlign='left';
   g.lines.forEach((t,i)=>{
     const lx=L.align==='center'?(g.bw-g.ws[i])/2:L.align==='right'?g.bw-g.ws[i]:0;
     const y=i*g.lhp+L.size*0.8;
@@ -662,82 +680,208 @@ function drawSelection(c,L,k){
 }
 
 /* ---------- render ---------- */
-/* uma passagem ASCII por imagem (principal ou extra); cada uma tem seu próprio cache */
+// cada imagem vira uma "passagem": geometria da grade, dados de cor e máscara de fundo (com cache)
+function passGeom(ps,w,h){
+  const cols=+$('cols').value, cw=w/cols, fs=cw/0.6, rh=fs*(+$('lh').value), rows=Math.ceil(h/rh);
+  const im=ps.im, fit=Math.min(w/im.width,h/im.height)*ps.sc, iw=im.width*fit, ih=im.height*fit;
+  return {cols,rows,cw,rh,fs,ix:ps.pos.x*w-iw/2,iy:ps.pos.y*h-ih/2,iw,ih};
+}
+function cellData(ps,g){
+  const cc=asciiCache[ps.cid]||(asciiCache[ps.cid]={}), {cols,rows,cw,rh,ix,iy,iw,ih}=g, im=ps.im;
+  const inv=$('invert').checked;
+  const key=[im.src.length,im.src.slice(-40),cols,rows,ix|0,iy|0,iw|0,ih|0,inv].join('|');
+  if(cc.key!==key){
+    const off=document.createElement('canvas'); off.width=cols; off.height=rows;
+    const oc=off.getContext('2d',{willReadFrequently:true});
+    oc.fillStyle=inv?'#fff':'#000'; oc.fillRect(0,0,cols,rows);
+    oc.imageSmoothingQuality='high'; oc.drawImage(im,ix/cw,iy/rh,iw/cw,ih/rh);
+    cc.data=oc.getImageData(0,0,cols,rows).data; cc.key=key; cc.mkey=null;
+  }
+  let mask=null;
+  if($('rmbg').checked){
+    const mk=key+'|'+(+$('bgtol').value);
+    if(cc.mkey!==mk){
+      const rc={x0:Math.max(0,Math.floor(ix/cw)),y0:Math.max(0,Math.floor(iy/rh)),x1:Math.min(cols,Math.ceil((ix+iw)/cw)),y1:Math.min(rows,Math.ceil((iy+ih)/rh))};
+      cc.mask=bgMask(cc.data,cols,rows,+$('bgtol').value,rc); cc.mkey=mk;
+    }
+    mask=cc.mask;
+  }
+  return {d:cc.data,mask};
+}
+// calcula, para cada célula visível, a posição, o caractere, a cor e a opacidade e entrega a fn(...)
+function passCells(ps,w,h,T,fn){
+  const g=passGeom(ps,w,h), {cols,rows,cw,rh}=g;
+  if(ps.obj) ps.obj._r={x0:g.ix,y0:g.iy,x1:g.ix+g.iw,y1:g.iy+g.ih};
+  const {d,mask}=cellData(ps,g);
+  const inv=$('invert').checked, br=+$('bright').value, ct=+$('contrast').value, th=+$('thresh').value, nz=+$('noise').value;
+  const fade=$('fade').checked, colorful=$('colorful').checked, gOn=$('grad').checked;
+  const gLut=gOn?gradLUT():null, gType=$('gradType').value, gAng=+$('gradAng').value*Math.PI/180;
+  const gCs=Math.cos(gAng), gSn=Math.sin(gAng), gExt=(Math.abs(gCs)+Math.abs(gSn))/2||1, gRad=Math.hypot(w,h)/2;
+  const gIdx=(x,y)=>{
+    const X=x*cw+cw/2, Y=y*rh+rh/2; let t;
+    if(gType==='radial') t=Math.hypot(X-w/2,Y-h/2)/gRad;
+    else t=((X/w-.5)*gCs+(Y/h-.5)*gSn+gExt)/(2*gExt);
+    return Math.max(0,Math.min(255,Math.round(t*255)));
+  };
+  const fg=hexRgb($('c-fg').value);
+  const anim=T!=null, F={}, amp=+$('amp').value; if(anim) FX.forEach(f=>F[f]=1);
+  const tick=anim?Math.floor(T*6):0, breathe=F.breathe?Math.sin(T*1.6)*amp*0.28:0;
+  const flowOff=F.flow?Math.floor(T*10):0, driftY=F.drift?T*0.6:0;
+  const cs=charsetC(), n=cs.length, textMode=st.mode==='text', fc=textMode?fillCharsC():null, flow=$('flowInside').checked;
+  const ct1=ct; let k2=0;
+  for(let y=0;y<rows;y++){
+    for(let x=0;x<cols;x++){
+      const idx=y*cols+x, i=idx*4;
+      if(mask && !mask[idx]) continue;
+      let v=(0.299*d[i]+0.587*d[i+1]+0.114*d[i+2])/255;
+      if(inv) v=1-v;
+      v=(v-0.5)*ct1+0.5+br;
+      if(nz) v+=(hash(x,y)-0.5)*nz;
+      let al=1,hh=0;
+      if(anim){
+        hh=hash(x+7,y+3);
+        if(F.wave) v+=Math.sin(x*0.07+y*0.05-T*2.6)*amp*0.22;
+        v+=breathe;
+        if(F.flicker) al=1-amp*0.6*(0.5+0.5*Math.sin(T*(3+hh*5)+hh*40));
+      }
+      if(v<=th) continue;
+      v=Math.min(1,(v-th)/(1-th));
+      let ch;
+      if(textMode){ ch=fc[((flow?k2++:idx)+flowOff)%fc.length]; }
+      else { let ci=Math.round(v*(n-1)); if(F.flow) ci+=Math.floor(T*4+x*0.15+y*0.1)%3-1; ch=cs[Math.min(n-1,Math.max(1,ci))]; }
+      if(F.scramble && hash(x*31+tick,y*17+tick*7)<amp*0.35){ const pool=textMode?fc:cs; ch=pool[1+Math.floor(hash(x+tick,y)*(pool.length-1))]||ch; }
+      if(ch===' ') continue;
+      let r=fg[0], gg=fg[1], b=fg[2];
+      if(gOn){ const q=gLut[gIdx(x,y)]; r=q[0]; gg=q[1]; b=q[2]; }
+      else if(colorful){ r=d[i]; gg=d[i+1]; b=d[i+2]; }
+      fn(x,y,v,ch,r,gg,b,(fade?0.35+0.65*v:1)*al,F.drift?Math.sin(driftY+x*0.12+hh*2)*rh*amp*0.6:0,g);
+    }
+  }
+}
+// desenho 2D (padrão). Com "Giro 3D (imagens)" as células são giradas em perspectiva.
 function asciiPass(c,ps,k,w,h,T){
-  const im=ps.im, cc=asciiCache[ps.cid]||(asciiCache[ps.cid]={});
-    const cols=+$('cols').value, cw=w/cols, fs=cw/0.6, rh=fs*(+$('lh').value);
-    const rows=Math.ceil(h/rh), sc=ps.sc;
-    const fit=Math.min(w/im.width,h/im.height)*sc, iw=im.width*fit, ih=im.height*fit;
-    const ix=ps.pos.x*w-iw/2, iy=ps.pos.y*h-ih/2; if(ps.obj) ps.obj._r={x0:ix,y0:iy,x1:ix+iw,y1:iy+ih};
-    const inv=$('invert').checked;
-    const key=[im.src.length,im.src.slice(-40),cols,rows,ix|0,iy|0,iw|0,ih|0,inv].join('|');
-    if(cc.key!==key){
-      const off=document.createElement('canvas'); off.width=cols; off.height=rows;
-      const oc=off.getContext('2d',{willReadFrequently:true});
-      oc.fillStyle=inv?'#fff':'#000'; oc.fillRect(0,0,cols,rows);
-      oc.imageSmoothingQuality='high'; oc.drawImage(im,ix/cw,iy/rh,iw/cw,ih/rh);
-      cc.data=oc.getImageData(0,0,cols,rows).data; cc.key=key;
-    }
-    const d=cc.data;
-    const rm=$('rmbg').checked;
-    if(rm){
-      const mk=key+'|'+(+$('bgtol').value);
-      if(cc.mkey!==mk){
-        const rc={x0:Math.max(0,Math.floor(ix/cw)),y0:Math.max(0,Math.floor(iy/rh)),x1:Math.min(cols,Math.ceil((ix+iw)/cw)),y1:Math.min(rows,Math.ceil((iy+ih)/rh))};
-        cc.mask=bgMask(d,cols,rows,+$('bgtol').value,rc); cc.mkey=mk;
+  const g0=passGeom(ps,w,h), amp=+$('amp').value;
+  const R3=T!=null&&FX.includes('rot3d'), a3=Math.sin((T||0)*0.9)*(0.3+amp*0.7), cA=Math.cos(a3), sA=Math.sin(a3), dep=w*0.18*(0.5+amp), f3=w*1.2;
+  c.font=`700 ${g0.fs}px "JetBrains Mono", ui-monospace, monospace`;
+  c.textAlign=R3?'center':'left'; c.textBaseline=R3?'middle':'top';
+  let la=-1, lr=-1, lg=-1, lb=-1;
+  passCells(ps,w,h,T,(x,y,v,ch,r,gg,b,al,dy,g)=>{
+    if(r!==lr||gg!==lg||b!==lb){ c.fillStyle=`rgb(${r},${gg},${b})`; lr=r; lg=gg; lb=b; }
+    if(al!==la){ c.globalAlpha=al; la=al; }
+    if(R3){
+      const X=x*g.cw+g.cw/2-w/2, Y=y*g.rh+g.rh/2-h/2, Z=(v-0.5)*dep;
+      const xr=X*cA+Z*sA, zr=-X*sA+Z*cA, s=f3/(f3+zr);
+      c.setTransform(k*s,0,0,k*s,k*(w/2+xr*s),k*(h/2+Y*s)); c.fillText(ch,0,0); c.setTransform(k,0,0,k,0,0);
+    } else c.fillText(ch,x*g.cw,y*g.rh+dy);
+  });
+  c.globalAlpha=1; c.textAlign='left'; c.textBaseline='top';
+}
+
+/* ---------- volume 3D com WebGL 2 ---------- */
+// cada célula vira uma pilha de quads (camadas) com a letra; o brilho define o relevo
+const AT={tw:128,th:214,cols:16,rows:8};
+const VOL={ok:undefined,cv:null,gl:null,prog:null,vao:null,ibuf:null,tex:null,map:new Map(),dirty:true,buf:new Float32Array(13*4096),U:{}};
+function volInit(){
+  if(VOL.ok!==undefined) return VOL.ok;
+  VOL.ok=false;
+  const cv=document.createElement('canvas');
+  const gl=cv.getContext('webgl2',{premultipliedAlpha:true,alpha:true,antialias:false});
+  if(!gl){ setStatus('Este navegador não tem WebGL 2; o modo 3D não está disponível.'); return false; }
+  const vsrc=`#version 300 es
+in vec2 aCorner; in vec3 aPos; in vec2 aSize; in vec4 aUV; in vec4 aCol;
+uniform vec2 uHalf; uniform float uYaw, uPitch, uFocal, uZR;
+out vec2 vUV; out vec4 vCol;
+void main(){
+  float cy=cos(uYaw), sy=sin(uYaw), cp=cos(uPitch), sp=sin(uPitch);
+  float x1=aPos.x*cy+aPos.z*sy, z1=-aPos.x*sy+aPos.z*cy;
+  float y2=aPos.y*cp-z1*sp, z2=aPos.y*sp+z1*cp;
+  float s=uFocal/(uFocal-z2);
+  vec2 p=vec2(x1,y2)*s+aCorner*aSize*s;
+  gl_Position=vec4(p.x/uHalf.x, -p.y/uHalf.y, clamp(-z2/uZR,-1.0,1.0), 1.0);
+  vUV=mix(aUV.xy,aUV.zw,aCorner+0.5); vCol=aCol;
+}`;
+  const fsrc=`#version 300 es
+precision mediump float;
+in vec2 vUV; in vec4 vCol; uniform sampler2D uTex; out vec4 o;
+void main(){ float a=texture(uTex,vUV).a*vCol.a; if(a<0.02) discard; o=vec4(vCol.rgb*a,a); }`;
+  const mk=(type,src)=>{ const s=gl.createShader(type); gl.shaderSource(s,src); gl.compileShader(s); return gl.getShaderParameter(s,gl.COMPILE_STATUS)?s:null; };
+  const vs=mk(gl.VERTEX_SHADER,vsrc), fs=mk(gl.FRAGMENT_SHADER,fsrc);
+  if(!vs||!fs) return false;
+  const prog=gl.createProgram(); gl.attachShader(prog,vs); gl.attachShader(prog,fs); gl.linkProgram(prog);
+  if(!gl.getProgramParameter(prog,gl.LINK_STATUS)) return false;
+  const vao=gl.createVertexArray(); gl.bindVertexArray(vao);
+  const cb=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,cb);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-.5,-.5,.5,-.5,-.5,.5,-.5,.5,.5,-.5,.5,.5]),gl.STATIC_DRAW);
+  const aC=gl.getAttribLocation(prog,'aCorner'); gl.enableVertexAttribArray(aC); gl.vertexAttribPointer(aC,2,gl.FLOAT,false,0,0);
+  const ib=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,ib);
+  const stride=13*4;
+  const attr=(name,size,off)=>{ const l=gl.getAttribLocation(prog,name); gl.enableVertexAttribArray(l); gl.vertexAttribPointer(l,size,gl.FLOAT,false,stride,off); gl.vertexAttribDivisor(l,1); };
+  attr('aPos',3,0); attr('aSize',2,12); attr('aUV',4,20); attr('aCol',4,36);
+  gl.bindVertexArray(null);
+  const tex=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,tex);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+  Object.assign(VOL,{cv,gl,prog,vao,ibuf:ib,tex});
+  ['uHalf','uYaw','uPitch','uFocal','uZR','uTex'].forEach(n=>VOL.U[n]=gl.getUniformLocation(prog,n));
+  gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LESS);
+  gl.enable(gl.BLEND); gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);
+  VOL.ok=true; return true;
+}
+function glyphIdx(ch){
+  let i=VOL.map.get(ch);
+  if(i===undefined){
+    if(VOL.map.size>=AT.cols*AT.rows) return 0;
+    i=VOL.map.size; VOL.map.set(ch,i); VOL.dirty=true;
+  }
+  return i;
+}
+function atlasUpload(){
+  const {gl,tex}=VOL, {tw,th,cols,rows}=AT;
+  const ac=document.createElement('canvas'); ac.width=tw*cols; ac.height=th*rows;
+  const x2=ac.getContext('2d');
+  x2.font=`700 ${tw/0.6}px "JetBrains Mono", ui-monospace, monospace`; x2.textBaseline='top'; x2.fillStyle='#fff';
+  VOL.map.forEach((i,ch)=>x2.fillText(ch,(i%cols)*tw,((i/cols)|0)*th));
+  gl.bindTexture(gl.TEXTURE_2D,tex); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,ac);
+  VOL.dirty=false;
+}
+function volumeDraw(c,passes,w,h,k,T){
+  if(!volInit()) return false;
+  const {gl,cv,U}=VOL, cwid=Math.max(1,Math.round(w*k)), chei=Math.max(1,Math.round(h*k));
+  if(cv.width!==cwid||cv.height!==chei){ cv.width=cwid; cv.height=chei; }
+  const layers=Math.max(1,Math.round(+$('vLayers').value)), dep=w*0.25*(+$('vDep').value);
+  const AW=AT.tw*AT.cols, AH=AT.th*AT.rows;
+  let buf=VOL.buf, n=0;
+  passes.forEach(ps=>{
+    passCells(ps,w,h,T,(x,y,v,ch,r,gg,b,al,dy,g)=>{
+      const gi=glyphIdx(ch), col=gi%AT.cols, row=(gi/AT.cols)|0;
+      const u0=col*AT.tw/AW, v0=row*AT.th/AH, u1=(col+1)*AT.tw/AW, v1=(row+1)*AT.th/AH;
+      const X=x*g.cw+g.cw/2-w/2, Yc=y*g.rh+g.fs/2-h/2, Z0=(v-0.5)*dep;
+      const need=(n+layers)*13;
+      if(need>buf.length){ const nb=new Float32Array(Math.max(need,buf.length*2)); nb.set(buf); buf=nb; VOL.buf=nb; }
+      for(let s=0;s<layers;s++){
+        const sh=1-0.6*s/layers, o=n*13;
+        buf[o]=X; buf[o+1]=Yc; buf[o+2]=Z0-s*g.cw*0.5; buf[o+3]=g.cw; buf[o+4]=g.fs;
+        buf[o+5]=u0; buf[o+6]=v0; buf[o+7]=u1; buf[o+8]=v1;
+        buf[o+9]=r*sh/255; buf[o+10]=gg*sh/255; buf[o+11]=b*sh/255; buf[o+12]=al;
+        n++;
       }
-    }
-    const mask=rm?cc.mask:null;
-    const gOn=$('grad').checked, gLut=gOn?gradLUT():null, gType=$('gradType').value, gAng=+$('gradAng').value*Math.PI/180;
-    const gCs=Math.cos(gAng), gSn=Math.sin(gAng), gExt=(Math.abs(gCs)+Math.abs(gSn))/2||1, gRad=Math.hypot(w,h)/2;
-    const gIdx=(x,y)=>{
-      const X=x*cw+cw/2, Y=y*rh+rh/2; let t;
-      if(gType==='radial') t=Math.hypot(X-w/2,Y-h/2)/gRad;
-      else t=((X/w-.5)*gCs+(Y/h-.5)*gSn+gExt)/(2*gExt);
-      return Math.max(0,Math.min(255,Math.round(t*255)));
-    };
-    const anim=T!=null, F={}, amp=+$('amp').value; if(anim) fxOn().forEach(f=>F[f]=1);
-    const tick=anim?Math.floor(T*6):0, breathe=F.breathe?Math.sin(T*1.6)*amp*0.28:0;
-    const flowOff=F.flow?Math.floor(T*10):0, driftY=F.drift?T*0.6:0;
-    const R3=anim&&!!F.rot3d, a3=Math.sin(T*0.9)*(0.3+amp*0.7), cA=Math.cos(a3), sA=Math.sin(a3), dep=w*0.18*(0.5+amp), f3=w*1.2;
-    const cs=charset(), n=cs.length;
-    const br=+$('bright').value, ct=+$('contrast').value, th=+$('thresh').value, nz=+$('noise').value;
-    const fade=$('fade').checked, colorful=$('colorful').checked;
-    c.font=`700 ${fs}px "JetBrains Mono", ui-monospace, monospace`; c.textAlign=R3?'center':'left'; c.textBaseline=R3?'middle':'top'; c.fillStyle=$('c-fg').value;
-    const textMode=st.mode==='text', fc=textMode?fillChars():null, flow=$('flowInside').checked; let k2=0;
-    for(let y=0;y<rows;y++){
-      for(let x=0;x<cols;x++){
-        const i=(y*cols+x)*4;
-        if(mask && !mask[y*cols+x]) continue;
-        let v=(0.299*d[i]+0.587*d[i+1]+0.114*d[i+2])/255;
-        if(inv) v=1-v;
-        v=(v-0.5)*ct+0.5+br;
-        if(nz) v+=(hash(x,y)-0.5)*nz;
-        let al=1,hh=0;
-        if(anim){
-          hh=hash(x+7,y+3);
-          if(F.wave) v+=Math.sin(x*0.07+y*0.05-T*2.6)*amp*0.22;
-          v+=breathe;
-          if(F.flicker) al=1-amp*0.6*(0.5+0.5*Math.sin(T*(3+hh*5)+hh*40));
-        }
-        if(v<=th) continue;
-        v=Math.min(1,(v-th)/(1-th));
-        let ch;
-        if(textMode){ ch=fc[((flow?k2++:y*cols+x)+flowOff)%fc.length]; }
-        else { let ci=Math.round(v*(n-1)); if(F.flow) ci+=Math.floor(T*4+x*0.15+y*0.1)%3-1; ch=cs[Math.min(n-1,Math.max(1,ci))]; }
-        if(F.scramble && hash(x*31+tick,y*17+tick*7)<amp*0.35){ const pool=textMode?fc:cs; ch=pool[1+Math.floor(hash(x+tick,y)*(pool.length-1))]||ch; }
-        if(ch===' ') continue;
-        if(gOn) c.fillStyle=gLut[gIdx(x,y)]; else if(colorful) c.fillStyle=`rgb(${d[i]},${d[i+1]},${d[i+2]})`;
-        c.globalAlpha=(fade?0.35+0.65*v:1)*al;
-        const dy=F.drift?Math.sin(driftY+x*0.12+hh*2)*rh*amp*0.6:0;
-        if(R3){
-          const X=x*cw+cw/2-w/2, Y=y*rh+rh/2-h/2, Z=(v-0.5)*dep;
-          const xr=X*cA+Z*sA, zr=-X*sA+Z*cA, sc3=f3/(f3+zr);
-          c.setTransform(k*sc3,0,0,k*sc3,k*(w/2+xr*sc3),k*(h/2+Y*sc3)); c.fillText(ch,0,0); c.setTransform(k,0,0,k,0,0);
-        } else c.fillText(ch,x*cw,y*rh+dy);
-      }
-    }
-    c.globalAlpha=1;
+    });
+  });
+  if(VOL.dirty) atlasUpload();
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+  gl.viewport(0,0,cwid,chei); gl.clearColor(0,0,0,0); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  gl.useProgram(VOL.prog); gl.bindVertexArray(VOL.vao);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,VOL.tex); gl.uniform1i(U.uTex,0);
+  const sway=(T!=null&&FX.includes('sway3d'))?Math.sin(T*0.6)*0.5:0;
+  gl.uniform2f(U.uHalf,w/2,h/2);
+  gl.uniform1f(U.uYaw,(+$('vYaw').value)*Math.PI/180+sway);
+  gl.uniform1f(U.uPitch,(+$('vPitch').value)*Math.PI/180);
+  gl.uniform1f(U.uFocal,w*1.4); gl.uniform1f(U.uZR,w*1.5);
+  gl.bindBuffer(gl.ARRAY_BUFFER,VOL.ibuf); gl.bufferData(gl.ARRAY_BUFFER,buf.subarray(0,n*13),gl.DYNAMIC_DRAW);
+  if(n) gl.drawArraysInstanced(gl.TRIANGLES,0,6,n);
+  c.drawImage(cv,0,0,w,h);
+  return true;
 }
 
 function render(cv,k,T,ui,scene){
@@ -746,13 +890,16 @@ function render(cv,k,T,ui,scene){
   if(cv.width!==cwid||cv.height!==chei){ cv.width=cwid; cv.height=chei; }
   const c=cv.getContext('2d');
   c.setTransform(k,0,0,k,0,0);
-  c.globalAlpha=1; c.fillStyle=$('c-bg').value; c.fillRect(0,0,w,h);
+  c.globalAlpha=1; c.textAlign='left'; c.textBaseline='top';
+  c.fillStyle=$('c-bg').value; c.fillRect(0,0,w,h);
 
   const passes=[];
   if(scene.img) passes.push({im:scene.img,pos:scene.imgPos,sc:+$('scale').value,cid:'main'});
   (scene.extras||[]).forEach(X=>{ if(X.visible&&X.img) passes.push({im:X.img,pos:{x:X.x,y:X.y},sc:X.sc,cid:'x'+X.id,obj:X}); });
-  if(passes.length) passes.forEach(ps=>asciiPass(c,ps,k,w,h,T));
-  else if(ui){
+  if(passes.length){
+    const used3d=scene===st && $('vol3d').checked && volumeDraw(c,passes,w,h,k,T);
+    if(!used3d) passes.forEach(ps=>asciiPass(c,ps,k,w,h,T));
+  } else if(ui){
     const m=Math.min(w,h)*0.08;
     c.save(); c.strokeStyle='rgba(255,255,255,.22)'; c.lineWidth=2/k; c.setLineDash([8/k,6/k]);
     c.strokeRect(m,m,w-2*m,h-2*m); c.setLineDash([]);
@@ -764,7 +911,10 @@ function render(cv,k,T,ui,scene){
   }
   scene.layers.forEach(L=>{ if(L.visible) drawLayer(c,L,T); });
   if(ui){ const L=selLayer(); if(L&&L.visible) drawSelection(c,L,k); }
-  if(ui&&scene.selImg){ const X=(scene.extras||[]).find(x=>x.id===scene.selImg); if(X&&X.visible&&X._r){ const r=X._r; c.save(); c.strokeStyle='#d9ff6a'; c.lineWidth=1.5/k; c.setLineDash([5/k,4/k]); c.strokeRect(r.x0,r.y0,r.x1-r.x0,r.y1-r.y0); c.setLineDash([]); c.restore(); } }
+  if(ui&&scene.selImg){
+    const X=(scene.extras||[]).find(x=>x.id===scene.selImg);
+    if(X&&X.visible&&X._r){ const r=X._r; c.save(); c.strokeStyle='#d9ff6a'; c.lineWidth=1.5/k; c.setLineDash([5/k,4/k]); c.strokeRect(r.x0,r.y0,r.x1-r.x0,r.y1-r.y0); c.setLineDash([]); c.restore(); }
+  }
 }
 
 /* ---------- prévia e animação ---------- */
@@ -782,7 +932,8 @@ function loop(now){
 requestAnimationFrame(loop);
 function syncPlay(){ $('play').textContent=st.playing?'Pausar':'Animar'; }
 $('play').addEventListener('click',e=>{ e.preventDefault(); e.stopPropagation(); st.playing=!st.playing; syncPlay(); draw(); });
-$('fx').addEventListener('change',draw);
+$('fx').addEventListener('change',()=>{ refreshFx(); draw(); });
+$('vol3d').addEventListener('change',()=>{ $('volOpts').hidden=!$('vol3d').checked; draw(); });
 syncPlay();
 
 /* ---------- camadas ---------- */
@@ -1142,7 +1293,7 @@ function projectChanged(){
 }
 
 /* ---------- desfazer / refazer ---------- */
-const SET_IDS=['scale','cols','lh','bright','contrast','thresh','noise','speed','amp','vdur','expScale','custom','fillText','c-fg','c-bg','invert','fade','colorful','autosort','flowInside','skipSpaces','rmbg','bgtol','grad','gradType','gradAng','gradA','gradB','gradC','gradMid','vfmt'];
+const SET_IDS=['vol3d','vYaw','vPitch','vDep','vLayers','scale','cols','lh','bright','contrast','thresh','noise','speed','amp','vdur','expScale','custom','fillText','c-fg','c-bg','invert','fade','colorful','autosort','flowInside','skipSpaces','rmbg','bgtol','grad','gradType','gradAng','gradA','gradB','gradC','gradMid','vfmt'];
 let imgSeq=0;
 const hist={undo:[],redo:[],cur:null,curKey:undefined,timer:0,restoring:false};
 function readSettings(){
@@ -1158,6 +1309,7 @@ function applySettings(o){
   });
   ctrls.forEach(id=>syncOut(id));
   [...$('fx').querySelectorAll('input')].forEach(i=>{ i.checked=(o.fx||[]).includes(i.value); });
+  refreshFx(); $('volOpts').hidden=!$('vol3d').checked;
 }
 function setMode(m){
   st.mode=m; [...$('mode').children].forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.m===m)));
@@ -1315,6 +1467,7 @@ document.fonts && document.fonts.ready.then(()=>{ draw(); drawThumbs(); });
 
 /* ---------- início: exemplo pronto por trás + diálogo de novo projeto ---------- */
 (function init(){
+  refreshFx();
   const T=makeTemplate('example',P.w,P.h); st.layers=T.layers; st.imgPos=T.imgPos;
   projectChanged(); touched=false;
   loadImage(SAMPLE,im=>{ st.sampleImg=im; st.img=im; draw(); drawThumbs(); if(hist.curKey===undefined) rebase(); });
