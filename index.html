@@ -148,6 +148,16 @@ main{grid-area:m;display:flex;flex-direction:column;gap:12px;min-width:0;positio
   .sizes{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media (max-width:480px){ .tpls{grid-template-columns:1fr 1fr 1fr;gap:6px} .tpls .card small{display:none} }
+/* camadas e painéis: abas do painel esquerdo, títulos das seções e propriedades */
+.gtitle{margin:0;padding:12px 14px;font:700 11px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;justify-content:space-between;gap:8px;border-bottom:1px solid var(--line)}
+.right>.group>.body{padding:14px}
+.tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:4px}
+.tabs button{appearance:none;border:0;background:transparent;color:var(--muted);padding:9px 4px;border-radius:4px;font:600 12px/1 var(--display);cursor:pointer;min-width:0}
+.tabs button:hover{color:var(--fg)}
+.tabs button[aria-selected=true]{background:var(--raised);color:var(--accent)}
+.tabpanel{display:none;flex-direction:column}
+.tabpanel.on{display:flex}
+.tabpanel>.body{padding:14px;display:flex;flex-direction:column;gap:12px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
@@ -168,118 +178,85 @@ main{grid-area:m;display:flex;flex-direction:column;gap:12px;min-width:0;positio
     </div>
   </header>
 
-  <!-- painel esquerdo: imagem -->
+  <!-- painel esquerdo: ferramentas organizadas em abas -->
   <aside class="left">
-    <details class="group" open>
-      <summary>Foto</summary>
-      <div class="body">
-        <label class="drop" id="drop" tabindex="0">
-          <strong>Enviar foto</strong>
-          clique ou arraste uma imagem (JPG, PNG, WEBP)
-          <input id="file" type="file" accept="image/*" hidden>
+    <nav class="tabs" id="tabs" role="tablist" aria-label="Ferramentas">
+      <button role="tab" data-tab="forma" aria-selected="true">Forma</button>
+      <button role="tab" data-tab="tom" aria-selected="false">Tom e cor</button>
+      <button role="tab" data-tab="efeitos" aria-selected="false">Efeitos</button>
+      <button role="tab" data-tab="export" aria-selected="false">Exportar</button>
+    </nav>
+
+    <section class="group tabpanel on" data-panel="forma"><div class="body">
+      <label class="drop" id="drop" tabindex="0">
+        <strong>Enviar foto principal</strong>
+        clique ou arraste uma imagem (JPG, PNG, WEBP)
+        <input id="file" type="file" accept="image/*" hidden>
+      </label>
+      <p class="hint" style="margin:0">Fotos extras, textos e o fundo ficam na lista de camadas à direita.</p>
+      <button class="btn sm" id="removeImg">Remover foto principal</button>
+      <div class="seg" id="mode" role="group" aria-label="Como os caracteres formam a imagem">
+        <button class="btn sm" data-m="chars" aria-pressed="true">Por caracteres</button>
+        <button class="btn sm" data-m="text" aria-pressed="false">Por texto</button>
+      </div>
+      <div id="modeChars" class="stack">
+        <label class="f">Modelos prontos
+          <select id="preset">
+            <option value=" .,:;~^!?7JY5PGB#&@">Pôster (padrão)</option>
+            <option value=" .:-=+*#%@">Clássico</option>
+            <option value=" ░▒▓█">Blocos</option>
+            <option value=" 01">Binário</option>
+            <option value=" .oO0@">Pontos</option>
+            <option value=" /\|">Traços</option>
+          </select>
         </label>
-        <label class="f"><span class="row">Tamanho da imagem <output id="o-scale"></output></span>
-          <input id="scale" type="range" min="0.2" max="3" step="0.01" value="1"></label>
-        <label class="check"><input id="invert" type="checkbox"> Inverter (foto com fundo claro)</label>
-        <label class="check"><input id="rmbg" type="checkbox"> Remover fundo automaticamente</label>
-        <label class="f"><span class="row">Tolerância do fundo <output id="o-bgtol"></output></span>
-          <input id="bgtol" type="range" min="0.02" max="0.6" step="0.01" value="0.18"></label>
-        <p class="hint" style="margin:0">Funciona melhor com fundo de cor uniforme. Aumente a tolerância se sobrar fundo.</p>
-        <div class="two">
-          <button class="btn sm" id="centerImg">Centralizar foto</button>
-          <button class="btn sm" id="removeImg">Remover foto</button>
-        </div>
+        <label class="f">Seus caracteres, do mais leve ao mais cheio
+          <input id="custom" type="text" value=" .,:;~^!?7JY5PGB#&@" spellcheck="false" style="font-family:var(--mono)"></label>
+        <label class="check"><input id="autosort" type="checkbox"> Ordenar automaticamente pela densidade</label>
       </div>
-    </details>
-
-    <details class="group" open>
-      <summary>Imagens extras <span id="imgCount" style="letter-spacing:0;color:var(--fg)"></span></summary>
-      <div class="body">
-        <ul class="layers" id="imgs"></ul>
-        <p class="empty" id="imgsEmpty">Adicione mais fotos. Cada uma vira arte ASCII e pode ser arrastada na tela.</p>
-        <button class="btn" id="addImg">+ Adicionar imagem</button>
-        <input id="fileX" type="file" accept="image/*" multiple hidden>
-        <div class="props" id="imgProps" hidden>
-          <h3>Imagem selecionada</h3>
-          <label class="f"><span class="row">Tamanho <output id="o-ix-sc"></output></span>
-            <input id="ix-sc" type="range" min="0.1" max="3" step="0.01"></label>
-          <button class="btn sm" id="ix-center">Centralizar</button>
-        </div>
+      <div id="modeText" class="stack" hidden>
+        <label class="f">Texto que forma a imagem
+          <textarea id="fillText" spellcheck="false" style="min-height:72px">SAÔ CRIATIVO • A ARTE DE TRANSFORMAR LUZ EM LETRA • </textarea></label>
+        <label class="check"><input id="flowInside" type="checkbox" checked> O texto corre só dentro da figura</label>
+        <label class="check"><input id="skipSpaces" type="checkbox"> Ignorar espaços do texto</label>
       </div>
-    </details>
-
-    <details class="group" open>
-      <summary>Foto de fundo</summary>
-      <div class="body">
-        <p class="hint" style="margin:0">Fica atrás da arte ASCII e não recebe o efeito.</p>
-        <button class="btn" id="addBg">Enviar foto de fundo</button>
-        <input id="fileBg" type="file" accept="image/*" hidden>
-        <label class="f"><span class="row">Opacidade <output id="o-bgOp"></output></span>
-          <input id="bgOp" type="range" min="0" max="1" step="0.01" value="1"></label>
-        <label class="f"><span class="row">Zoom <output id="o-bgZoom"></output></span>
-          <input id="bgZoom" type="range" min="1" max="3" step="0.01" value="1"></label>
-        <button class="btn sm" id="removeBg">Remover foto de fundo</button>
-      </div>
-    </details>
-
-    <details class="group" open>
-      <summary>Efeito ASCII</summary>
-      <div class="body">
-        <div class="seg" id="mode" role="group" aria-label="Como os caracteres formam a imagem">
-          <button class="btn sm" data-m="chars" aria-pressed="true">Por caracteres</button>
-          <button class="btn sm" data-m="text" aria-pressed="false">Por texto</button>
-        </div>
-        <div id="modeChars" class="stack">
-          <label class="f">Modelos prontos
-            <select id="preset">
-              <option value=" .,:;~^!?7JY5PGB#&@">Pôster (padrão)</option>
-              <option value=" .:-=+*#%@">Clássico</option>
-              <option value=" ░▒▓█">Blocos</option>
-              <option value=" 01">Binário</option>
-              <option value=" .oO0@">Pontos</option>
-              <option value=" /\|">Traços</option>
-            </select>
-          </label>
-          <label class="f">Seus caracteres, do mais leve ao mais cheio
-            <input id="custom" type="text" value=" .,:;~^!?7JY5PGB#&@" spellcheck="false" style="font-family:var(--mono)"></label>
-          <label class="check"><input id="autosort" type="checkbox"> Ordenar automaticamente pela densidade</label>
-        </div>
-        <div id="modeText" class="stack" hidden>
-          <label class="f">Texto que forma a imagem
-            <textarea id="fillText" spellcheck="false" style="min-height:72px">SAÔ CRIATIVO • A ARTE DE TRANSFORMAR LUZ EM LETRA • </textarea></label>
-          <label class="check"><input id="flowInside" type="checkbox" checked> O texto corre só dentro da figura</label>
-          <label class="check"><input id="skipSpaces" type="checkbox"> Ignorar espaços do texto</label>
-        </div>
-        <label class="f"><span class="row">Densidade (colunas) <output id="o-cols"></output></span>
+      <div class="two">
+        <label class="f"><span class="row">Densidade <output id="o-cols"></output></span>
           <input id="cols" type="range" min="40" max="320" step="1" value="150"></label>
-        <label class="f"><span class="row">Espaçamento das linhas <output id="o-lh"></output></span>
+        <label class="f"><span class="row">Entrelinhas <output id="o-lh"></output></span>
           <input id="lh" type="range" min="0.7" max="1.6" step="0.01" value="1"></label>
-        <div class="two">
-          <label class="f"><span class="row">Brilho <output id="o-bright"></output></span>
-            <input id="bright" type="range" min="-0.5" max="0.5" step="0.01" value="0"></label>
-          <label class="f"><span class="row">Contraste <output id="o-contrast"></output></span>
-            <input id="contrast" type="range" min="0.3" max="3" step="0.01" value="1.5"></label>
-        </div>
-        <div class="two">
-          <label class="f"><span class="row">Recorte do fundo <output id="o-thresh"></output></span>
-            <input id="thresh" type="range" min="0" max="0.8" step="0.01" value="0.18"></label>
-          <label class="f"><span class="row">Ruído <output id="o-noise"></output></span>
-            <input id="noise" type="range" min="0" max="0.5" step="0.01" value="0.08"></label>
-        </div>
-        <div class="inline">
-          <label class="check"><input id="fade" type="checkbox" checked> Opacidade pelo brilho</label>
-          <label class="check"><input id="colorful" type="checkbox"> Cores da foto</label>
-        </div>
-        <div class="inline">
-          <input id="c-fg" type="color" value="#ffffff" aria-label="Cor do ASCII"> Cor do ASCII
-          <input id="c-bg" type="color" value="#2c2c2c" aria-label="Cor do fundo"> Fundo
-        </div>
       </div>
-    </details>
+    </div></section>
 
-    <details class="group" open>
-      <summary>Gradiente</summary>
-      <div class="body">
+    <section class="group tabpanel" data-panel="tom"><div class="body">
+      <div class="two">
+        <label class="f"><span class="row">Brilho <output id="o-bright"></output></span>
+          <input id="bright" type="range" min="-0.5" max="0.5" step="0.01" value="0"></label>
+        <label class="f"><span class="row">Contraste <output id="o-contrast"></output></span>
+          <input id="contrast" type="range" min="0.3" max="3" step="0.01" value="1.5"></label>
+      </div>
+      <div class="two">
+        <label class="f"><span class="row">Recorte do fundo <output id="o-thresh"></output></span>
+          <input id="thresh" type="range" min="0" max="0.8" step="0.01" value="0.18"></label>
+        <label class="f"><span class="row">Ruído <output id="o-noise"></output></span>
+          <input id="noise" type="range" min="0" max="0.5" step="0.01" value="0.08"></label>
+      </div>
+      <label class="check"><input id="invert" type="checkbox"> Inverter (foto com fundo claro)</label>
+      <label class="check"><input id="rmbg" type="checkbox"> Remover fundo automaticamente</label>
+      <label class="f"><span class="row">Tolerância do fundo <output id="o-bgtol"></output></span>
+        <input id="bgtol" type="range" min="0.02" max="0.6" step="0.01" value="0.18"></label>
+      <p class="hint" style="margin:0">Funciona melhor com fundo de cor uniforme. Aumente a tolerância se sobrar fundo.</p>
+      <div class="inline">
+        <label class="check"><input id="fade" type="checkbox" checked> Opacidade pelo brilho</label>
+        <label class="check"><input id="colorful" type="checkbox"> Cores da foto</label>
+      </div>
+      <div class="inline">
+        <input id="c-fg" type="color" value="#ffffff" aria-label="Cor do ASCII"> Cor do ASCII
+        <input id="c-bg" type="color" value="#2c2c2c" aria-label="Cor do fundo do projeto"> Fundo do projeto
+      </div>
+
+      <div class="props">
+        <h3>Gradiente nos caracteres</h3>
         <label class="check"><input id="grad" type="checkbox"> Usar gradiente nos caracteres</label>
         <div class="two">
           <label class="f">Tipo
@@ -295,24 +272,34 @@ main{grid-area:m;display:flex;flex-direction:column;gap:12px;min-width:0;positio
         <label class="check"><input id="gradMid" type="checkbox"> Usar a cor do meio</label>
         <p class="hint" style="margin:0">Com gradiente ativo, ele substitui a cor do ASCII e as cores da foto.</p>
       </div>
-    </details>
+    </div></section>
 
-    <details class="group" open>
-      <summary>Animação <button class="btn sm sbtn" id="play">Pausar</button></summary>
-      <div class="body">
-        <div class="fx" id="fx">
-          <label class="check"><input type="checkbox" value="flicker" checked> Cintilar</label>
-          <label class="check"><input type="checkbox" value="wave" checked> Onda de luz</label>
-          <label class="check"><input type="checkbox" value="breathe"> Respirar</label>
-          <label class="check"><input type="checkbox" value="scramble"> Embaralhar</label>
-          <label class="check"><input type="checkbox" value="drift"> Deslizar</label>
-          <label class="check"><input type="checkbox" value="flow"> Texto corrente</label>
-          <label class="check"><input type="checkbox" value="rot3d"> Giro 3D (imagens, 2D)</label>
-          <label class="check"><input type="checkbox" value="sway3d"> Balanço 3D (volume)</label>
-          <label class="check"><input type="checkbox" value="spin360"> Girar 360° em loop (volume)</label>
-        </div>
-        <label class="check"><input id="vol3d" type="checkbox"> Volume 3D com WebGL (imagens com relevo)</label>
-        <div class="props" id="volOpts" hidden>
+    <section class="group tabpanel" data-panel="efeitos"><div class="body">
+      <div class="bar" style="gap:8px">
+        <span class="hint">Movimento da arte e das camadas</span>
+        <button class="btn sm" id="play">Pausar</button>
+      </div>
+      <div class="fx" id="fx">
+        <label class="check"><input type="checkbox" value="flicker" checked> Cintilar</label>
+        <label class="check"><input type="checkbox" value="wave" checked> Onda de luz</label>
+        <label class="check"><input type="checkbox" value="breathe"> Respirar</label>
+        <label class="check"><input type="checkbox" value="scramble"> Embaralhar</label>
+        <label class="check"><input type="checkbox" value="drift"> Deslizar</label>
+        <label class="check"><input type="checkbox" value="flow"> Texto corrente</label>
+        <label class="check"><input type="checkbox" value="rot3d"> Giro 3D (2D)</label>
+        <label class="check"><input type="checkbox" value="sway3d"> Balanço 3D (volume)</label>
+        <label class="check"><input type="checkbox" value="spin360"> Girar 360° em loop (volume)</label>
+      </div>
+      <div class="two">
+        <label class="f"><span class="row">Velocidade <output id="o-speed"></output></span>
+          <input id="speed" type="range" min="0.1" max="3" step="0.05" value="0.8"></label>
+        <label class="f"><span class="row">Intensidade <output id="o-amp"></output></span>
+          <input id="amp" type="range" min="0.05" max="1" step="0.01" value="0.35"></label>
+      </div>
+      <div class="props">
+        <h3>Volume 3D</h3>
+        <label class="check"><input id="vol3d" type="checkbox"> Volume 3D com WebGL (fotos com relevo)</label>
+        <div id="volOpts" hidden style="display:flex;flex-direction:column;gap:12px">
           <label class="f"><span class="row">Girar <output id="o-vYaw"></output></span>
             <input id="vYaw" type="range" min="-70" max="70" step="1" value="0"></label>
           <label class="f"><span class="row">Inclinar <output id="o-vPitch"></output></span>
@@ -322,35 +309,26 @@ main{grid-area:m;display:flex;flex-direction:column;gap:12px;min-width:0;positio
           <label class="f"><span class="row">Espessura (camadas) <output id="o-vLayers"></output></span>
             <input id="vLayers" type="range" min="1" max="8" step="1" value="4"></label>
         </div>
-        <div class="two">
-          <label class="f"><span class="row">Velocidade <output id="o-speed"></output></span>
-            <input id="speed" type="range" min="0.1" max="3" step="0.05" value="0.8"></label>
-          <label class="f"><span class="row">Intensidade <output id="o-amp"></output></span>
-            <input id="amp" type="range" min="0.05" max="1" step="0.01" value="0.35"></label>
-        </div>
       </div>
-    </details>
+    </div></section>
 
-    <details class="group" open>
-      <summary>Exportar</summary>
-      <div class="body">
-        <label class="f">Tamanho do PNG
-          <select id="expScale"></select></label>
-        <label class="f">Formato do vídeo
-          <select id="vfmt"><option value="mp4">MP4 (recomendado)</option><option value="webm">WebM</option></select>
-        </label>
-        <label class="f">Resolução do vídeo
-          <select id="vres"><option value="1080">Full HD (1080 px)</option><option value="1440" selected>2K (1440 px)</option><option value="2160">4K (2160 px)</option></select>
-        </label>
-        <label class="f">Duração do vídeo
-          <select id="vdur">
-            <option value="4">4 segundos</option>
-            <option value="8" selected>8 segundos</option>
-            <option value="15">15 segundos</option>
-          </select>
-        </label>
-      </div>
-    </details>
+    <section class="group tabpanel" data-panel="export"><div class="body">
+      <label class="f">Tamanho do PNG
+        <select id="expScale"></select></label>
+      <label class="f">Formato do vídeo
+        <select id="vfmt"><option value="mp4">MP4 (recomendado)</option><option value="webm">WebM</option></select>
+      </label>
+      <label class="f">Resolução do vídeo
+        <select id="vres"><option value="1080">Full HD (1080 px)</option><option value="1440" selected>2K (1440 px)</option><option value="2160">4K (2160 px)</option></select>
+      </label>
+      <label class="f">Duração do vídeo
+        <select id="vdur">
+          <option value="4">4 segundos</option>
+          <option value="8" selected>8 segundos</option>
+          <option value="15">15 segundos</option>
+        </select>
+      </label>
+    </div></section>
   </aside>
 
   <!-- tela -->
@@ -366,19 +344,33 @@ main{grid-area:m;display:flex;flex-direction:column;gap:12px;min-width:0;positio
     </div>
   </main>
 
-  <!-- painel direito: textos -->
+  <!-- painel direito: camadas e propriedades -->
   <aside class="right">
-    <details class="group" open>
-      <summary>Textos <span id="layerCount" style="letter-spacing:0;color:var(--fg)"></span></summary>
+    <section class="group">
+      <h2 class="gtitle">Camadas <span id="layerCount"></span></h2>
       <div class="body">
+        <p class="hint" style="margin:0">De cima para baixo, como no Photoshop. Clique para selecionar e arraste na tela para mover.</p>
         <ul class="layers" id="layers"></ul>
-        <p class="empty" id="layersEmpty">Nenhum texto na tela. Adicione um só se quiser.</p>
-        <button class="btn" id="addText">+ Adicionar texto</button>
+        <p class="empty" id="layersEmpty">Nenhuma camada ainda. Envie uma foto ou adicione um texto.</p>
+        <div class="two">
+          <button class="btn" id="addText">+ Texto</button>
+          <button class="btn" id="addAsc">+ Foto ASCII</button>
+        </div>
+        <button class="btn" id="addBg">+ Foto de fundo</button>
+        <input id="fileX" type="file" accept="image/*" multiple hidden>
+        <input id="fileBg" type="file" accept="image/*" hidden>
         <div class="quick">Ou comece de:
           <button class="btn sm ghost" data-q="title">Título</button>
           <button class="btn sm ghost" data-q="para">Parágrafo</button>
           <button class="btn sm ghost" data-q="vertical">Vertical</button>
         </div>
+      </div>
+    </section>
+
+    <section class="group">
+      <h2 class="gtitle">Propriedades</h2>
+      <div class="body">
+        <p class="empty" id="propEmpty">Selecione uma camada para editar.</p>
 
         <div class="props" id="props" hidden>
           <h3>Texto selecionado</h3>
@@ -421,8 +413,38 @@ main{grid-area:m;display:flex;flex-direction:column;gap:12px;min-width:0;positio
             <label class="f">&nbsp;<button class="btn sm" id="p-center" style="height:38px">Centralizar</button></label>
           </div>
         </div>
+
+        <div class="props" id="propAsc" hidden>
+          <h3 id="ascTitle">Foto ASCII</h3>
+          <label class="f"><span class="row">Tamanho <output id="o-ascSc"></output></span>
+            <input id="ascSc" type="range" min="0.1" max="4" step="0.01"></label>
+          <label class="f"><span class="row">Ângulo <output id="o-ascRot"></output></span>
+            <input id="ascRot" type="range" min="-180" max="180" step="1" value="0"></label>
+          <div class="two">
+            <button class="btn sm" id="ascCenter">Centralizar</button>
+            <button class="btn sm" id="ascReset">Tamanho e ângulo originais</button>
+          </div>
+          <p class="hint" style="margin:0">Arraste a foto para mover. Use o canto selecionado para redimensionar.</p>
+        </div>
+
+        <div class="props" id="propBg" hidden>
+          <h3>Foto de fundo</h3>
+          <p class="hint" style="margin:0">Fica atrás de tudo e não recebe o efeito ASCII.</p>
+          <label class="f"><span class="row">Opacidade <output id="o-bgOp"></output></span>
+            <input id="bgOp" type="range" min="0" max="1" step="0.01" value="1"></label>
+          <label class="f"><span class="row">Zoom <output id="o-bgZoom"></output></span>
+            <input id="bgZoom" type="range" min="1" max="3" step="0.01" value="1"></label>
+          <label class="check"><input id="bgMap" type="checkbox"> Mapa de degradê (tons da foto viram cores)</label>
+          <div class="three">
+            <label class="f">Sombras <input id="bgA" type="color" value="#1a0b2e"></label>
+            <label class="f">Luzes <input id="bgB" type="color" value="#ffd27a"></label>
+            <label class="f">Meio <input id="bgC" type="color" value="#ff3d7f"></label>
+          </div>
+          <label class="check"><input id="bgMid" type="checkbox" checked> Usar a cor do meio</label>
+          <button class="btn sm" id="removeBg">Remover foto de fundo</button>
+        </div>
       </div>
-    </details>
+    </section>
   </aside>
 </div>
 
@@ -511,7 +533,7 @@ const WNAMES={100:'Fino',200:'Extra leve',300:'Leve',400:'Regular',500:'Médio',
 
 /* ---------- estado ---------- */
 const P={name:'Sem título',w:2000,h:3000};
-const st={img:null,bgImg:null,sampleImg:null,imgPos:{x:.57,y:.5},layers:[],extras:[],selImg:null,sel:null,mode:'chars',playing:true,t:0,rec:false};
+const st={img:null,imgSc:1,imgRot:0,imgVis:true,bgImg:null,bgVis:true,sampleImg:null,imgPos:{x:.57,y:.5},layers:[],extras:[],order:[],sel:null,mode:'chars',playing:true,t:0,rec:false};
 let xSeq=0, asciiCache={};
 let uid=1, touched=false;
 const markTouched=()=>{ touched=true; };
@@ -535,12 +557,22 @@ function makeTemplate(kind,w,h){
 }
 
 /* ---------- foto ---------- */
+// item "foto principal": lê e grava direto em st, assim a seleção, o arraste e o desfazer usam a mesma regra das outras camadas
+const MAIN={
+  id:'main', _r:null,
+  get img(){return st.img;}, set img(v){st.img=v;},
+  get x(){return st.imgPos.x;}, set x(v){st.imgPos.x=v;},
+  get y(){return st.imgPos.y;}, set y(v){st.imgPos.y=v;},
+  get sc(){return st.imgSc;}, set sc(v){st.imgSc=v;},
+  get rot(){return st.imgRot;}, set rot(v){st.imgRot=v;},
+  get visible(){return st.imgVis!==false;}, set visible(v){st.imgVis=v;}
+};
 function loadImage(src,cb){ const im=new Image(); im.onload=()=>cb(im); im.src=src; }
 $('file').addEventListener('change',e=>{ const f=e.target.files[0]; if(f) readFile(f); e.target.value=''; });
 function readFile(f){
   if(!f.type.startsWith('image/')){ setStatus('Esse arquivo não é uma imagem.'); return; }
   const r=new FileReader();
-  r.onload=()=>loadImage(r.result,im=>{ markTouched(); st.img=im; st.imgPos={x:.5,y:.5}; $('scale').value=1; syncOut('scale'); setStatus('Foto carregada.'); draw(); scheduleCommit(); });
+  r.onload=()=>loadImage(r.result,im=>{ markTouched(); st.img=im; st.imgPos={x:.5,y:.5}; st.imgSc=1; st.imgRot=0; st.imgVis=true; ensureOrder(); select('main'); setStatus('Foto carregada.'); draw(); scheduleCommit(); });
   r.readAsDataURL(f);
 }
 function dropZone(el){
@@ -550,25 +582,24 @@ function dropZone(el){
 }
 dropZone($('drop')); dropZone($('stage'));
 $('drop').addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); $('file').click(); }});
-$('centerImg').addEventListener('click',()=>{ markTouched(); st.imgPos={x:.5,y:.5}; draw(); });
-$('removeImg').addEventListener('click',()=>{ markTouched(); st.img=null; draw(); setStatus('Foto removida.'); });
+$('removeImg').addEventListener('click',()=>{ markTouched(); st.img=null; if(st.sel==='main') st.sel=null; ensureOrder(); renderList(); refreshProps(); draw(); setStatus('Foto principal removida.'); });
 $('addBg').addEventListener('click',()=>$('fileBg').click());
 $('fileBg').addEventListener('change',e=>{
   const f=e.target.files[0]; e.target.value=''; if(!f) return;
   if(!f.type.startsWith('image/')){ setStatus('Esse arquivo não é uma imagem.'); return; }
   const r=new FileReader();
-  r.onload=()=>loadImage(r.result,im=>{ markTouched(); st.bgImg=im; setStatus('Foto de fundo adicionada.'); draw(); scheduleCommit(); });
+  r.onload=()=>loadImage(r.result,im=>{ markTouched(); st.bgImg=im; st.bgVis=true; ensureOrder(); select('bg'); setStatus('Foto de fundo adicionada.'); draw(); scheduleCommit(); });
   r.readAsDataURL(f);
 });
-$('removeBg').addEventListener('click',()=>{ markTouched(); st.bgImg=null; draw(); setStatus('Foto de fundo removida.'); });
+$('removeBg').addEventListener('click',()=>{ markTouched(); st.bgImg=null; if(st.sel==='bg') st.sel=null; ensureOrder(); renderList(); refreshProps(); draw(); setStatus('Foto de fundo removida.'); });
 
 /* ---------- controles globais ---------- */
-const ctrls=['bgOp','bgZoom','speed','amp','scale','cols','lh','bright','contrast','thresh','noise','bgtol','gradAng','vYaw','vPitch','vDep','vLayers'];
+const ctrls=['bgOp','bgZoom','speed','amp','cols','lh','bright','contrast','thresh','noise','bgtol','gradAng','vYaw','vPitch','vDep','vLayers'];
 const fmt={bgOp:v=>Math.round(v*100)+'%',bgZoom:v=>(+v).toFixed(2)+'×',vYaw:v=>Math.round(v)+'°',vPitch:v=>Math.round(v)+'°',vDep:v=>Math.round(v*100)+'%',vLayers:v=>Math.round(v),bgtol:v=>Math.round(v*100)+'%',gradAng:v=>Math.round(v)+'°',speed:v=>(+v).toFixed(2)+'×',amp:v=>Math.round(v*100)+'%',scale:v=>Math.round(v*100)+'%',cols:v=>v,lh:v=>(+v).toFixed(2),bright:v=>(v>0?'+':'')+Math.round(v*100),contrast:v=>(+v).toFixed(2),thresh:v=>Math.round(v*100)+'%',noise:v=>Math.round(v*100)+'%'};
 function syncOut(id){ const o=$('o-'+id); if(o) o.textContent=fmt[id]($(id).value); }
 ctrls.forEach(id=>{ syncOut(id); $(id).addEventListener('input',()=>{syncOut(id);draw();}); });
-['invert','fade','colorful','c-bg','c-fg','custom','autosort','fillText','flowInside','skipSpaces'].forEach(id=>$(id).addEventListener('input',draw));
-['rmbg','grad','gradMid','gradType','vfmt','gradA','gradB','gradC'].forEach(id=>$(id).addEventListener('change',draw));
+['invert','fade','colorful','c-bg','c-fg','custom','autosort','fillText','flowInside','skipSpaces','bgA','bgB','bgC'].forEach(id=>$(id).addEventListener('input',draw));
+['rmbg','grad','gradMid','gradType','vfmt','gradA','gradB','gradC','bgMap','bgMid'].forEach(id=>$(id).addEventListener('change',draw));
 $('preset').addEventListener('change',()=>{ $('custom').value=$('preset').value; draw(); });
 $('mode').addEventListener('click',e=>{
   const b=e.target.closest('button'); if(!b) return;
@@ -596,20 +627,18 @@ function fillChars(){
   if($('skipSpaces').checked) t=t.replace(/ /g,'');
   const a=[...t]; return a.length?a:['#'];
 }
-function bgMask(d,cols,rows,tol,rc){
-  // rc = retângulo da foto em células; só as bordas DA FOTO definem a cor do fundo
-  const n=cols*rows, isBg=new Uint8Array(n), q=new Int32Array(n); let qh=0,qt=0;
-  const x0=rc.x0,x1=rc.x1-1,y0=rc.y0,y1=rc.y1-1;
+function bgMask(d,cols,rows,tol,g){
+  // a cor do fundo é amostrada só ao longo do contorno da foto (girada ou não)
+  const rim=rimCells(g,cols,rows), n=cols*rows, isBg=new Uint8Array(n), q=new Int32Array(n); let qh=0,qt=0;
   const er=[],eg=[],eb=[];
-  const edge=i=>{ er.push(d[i*4]); eg.push(d[i*4+1]); eb.push(d[i*4+2]); };
-  for(let x=x0;x<=x1;x++){ edge(y0*cols+x); edge(y1*cols+x); }
-  for(let y=y0;y<=y1;y++){ edge(y*cols+x0); edge(y*cols+x1); }
+  rim.forEach(i=>{ er.push(d[i*4]); eg.push(d[i*4+1]); eb.push(d[i*4+2]); });
   const med=a=>{ a.sort((p,r)=>p-r); return a[a.length>>1]; };
   const R=med(er), G=med(eg), B=med(eb);
   const near=i=>{ const dr=d[i*4]-R, dg=d[i*4+1]-G, db=d[i*4+2]-B; return Math.sqrt(dr*dr+dg*dg+db*db)/441 < tol; };
   const push=i=>{ if(!isBg[i] && near(i)){ isBg[i]=1; q[qt++]=i; } };
-  for(let x=x0;x<=x1;x++){ push(y0*cols+x); push(y1*cols+x); }
-  for(let y=y0;y<=y1;y++){ push(y*cols+x0); push(y*cols+x1); }
+  rim.forEach(i=>push(i));
+  const x0=Math.max(0,Math.floor(g.bb.x0/g.cw)), x1=Math.min(cols-1,Math.ceil(g.bb.x1/g.cw));
+  const y0=Math.max(0,Math.floor(g.bb.y0/g.rh)), y1=Math.min(rows-1,Math.ceil(g.bb.y1/g.rh));
   while(qh<qt){
     const i=q[qh++], x=i%cols, y=(i-x)/cols;
     if(x>x0) push(i-1); if(x<x1) push(i+1); if(y>y0) push(i-cols); if(y<y1) push(i+cols);
@@ -617,17 +646,36 @@ function bgMask(d,cols,rows,tol,rc){
   const mask=new Uint8Array(n); for(let i=0;i<n;i++) mask[i]=isBg[i]?0:1;
   return mask;
 }
+// células ao longo do contorno da foto, já girada
+function rimCells(g,cols,rows){
+  const {cx,cy,iw,ih,rot,cw,rh}=g, c=Math.cos(rot), s=Math.sin(rot);
+  const pts=[[-iw/2,-ih/2],[iw/2,-ih/2],[iw/2,ih/2],[-iw/2,ih/2]].map(([x,y])=>[cx+x*c-y*s, cy+x*s+y*c]);
+  const rim=new Set(), step=Math.min(cw,rh);
+  for(let e=0;e<4;e++){
+    const [ax,ay]=pts[e], [bx,by]=pts[(e+1)%4], n=Math.max(1,Math.ceil(Math.hypot(bx-ax,by-ay)/step));
+    for(let j=0;j<=n;j++){
+      const t=j/n, x=clamp(Math.floor((ax+(bx-ax)*t)/cw),0,cols-1), y=clamp(Math.floor((ay+(by-ay)*t)/rh),0,rows-1);
+      rim.add(y*cols+x);
+    }
+  }
+  return [...rim];
+}
 function hexRgb(h){ return [parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)]; }
-function gradLUT(){
-  const stops=[$('gradA').value,$('gradB').value]; if($('gradMid').checked) stops.splice(1,0,$('gradC').value);
-  const key=stops.join(); if(gradLUT.key===key) return gradLUT.rgb;
+// tabela de 256 tons interpolada entre 2 ou 3 cores (usada pelo gradiente dos caracteres e pelo mapa de degradê)
+function lutFrom(stops){
   const cs=stops.map(hexRgb), rgb=[];
   for(let i=0;i<256;i++){
     const t=i/255*(cs.length-1), k=Math.min(cs.length-2,Math.floor(t)), f=t-k, a=cs[k], b=cs[k+1];
     rgb.push([Math.round(a[0]+(b[0]-a[0])*f),Math.round(a[1]+(b[1]-a[1])*f),Math.round(a[2]+(b[2]-a[2])*f)]);
   }
-  gradLUT.key=key; gradLUT.rgb=rgb; return rgb;
+  return rgb;
 }
+function gradLUT(){
+  const stops=[$('gradA').value,$('gradB').value]; if($('gradMid').checked) stops.splice(1,0,$('gradC').value);
+  const key=stops.join(); if(gradLUT.key===key) return gradLUT.rgb;
+  gradLUT.key=key; gradLUT.rgb=lutFrom(stops); return gradLUT.rgb;
+}
+
 // efeitos ativos são lidos uma vez por mudança (não a cada célula/quadro)
 let FX=[];
 function refreshFx(){ FX=[...$('fx').querySelectorAll('input:checked')].map(i=>i.value); }
@@ -711,26 +759,29 @@ function drawSelection(c,L,k){
 function passGeom(ps,w,h){
   const cols=+$('cols').value, cw=w/cols, fs=cw/0.6, rh=fs*(+$('lh').value), rows=Math.ceil(h/rh);
   const im=ps.im, fit=Math.min(w/im.width,h/im.height)*ps.sc, iw=im.width*fit, ih=im.height*fit;
-  return {cols,rows,cw,rh,fs,ix:ps.pos.x*w-iw/2,iy:ps.pos.y*h-ih/2,iw,ih};
+  const cx=ps.pos.x*w, cy=ps.pos.y*h, rot=(ps.rot||0)*Math.PI/180;
+  const ca=Math.abs(Math.cos(rot)), sa=Math.abs(Math.sin(rot));
+  const bw=iw*ca+ih*sa, bh=iw*sa+ih*ca;
+  return {cols,rows,cw,rh,fs,cx,cy,iw,ih,rot,rotDeg:ps.rot||0,bb:{x0:cx-bw/2,y0:cy-bh/2,x1:cx+bw/2,y1:cy+bh/2}};
 }
 function cellData(ps,g){
-  const cc=asciiCache[ps.cid]||(asciiCache[ps.cid]={}), {cols,rows,cw,rh,ix,iy,iw,ih}=g, im=ps.im;
+  const cc=asciiCache[ps.cid]||(asciiCache[ps.cid]={}), {cols,rows,cw,rh,cx,cy,iw,ih,rot}=g, im=ps.im;
   const inv=$('invert').checked;
-  const key=[im.src.length,im.src.slice(-40),cols,rows,ix|0,iy|0,iw|0,ih|0,inv].join('|');
+  const key=[im.src.length,im.src.slice(-40),cols,rows,Math.round(cx*4),Math.round(cy*4),Math.round(iw*4),Math.round(ih*4),Math.round(rot*1e4),inv].join('|');
   if(cc.key!==key){
     const off=document.createElement('canvas'); off.width=cols; off.height=rows;
     const oc=off.getContext('2d',{willReadFrequently:true});
     oc.fillStyle=inv?'#fff':'#000'; oc.fillRect(0,0,cols,rows);
-    oc.imageSmoothingQuality='high'; oc.drawImage(im,ix/cw,iy/rh,iw/cw,ih/rh);
+    oc.imageSmoothingQuality='high';
+    // desenha em pixels (com rotação) e depois converte para a grade de células
+    oc.setTransform(1/cw,0,0,1/rh,0,0); oc.translate(cx,cy); oc.rotate(rot); oc.drawImage(im,-iw/2,-ih/2,iw,ih);
+    oc.setTransform(1,0,0,1,0,0);
     cc.data=oc.getImageData(0,0,cols,rows).data; cc.key=key; cc.mkey=null;
   }
   let mask=null;
   if($('rmbg').checked){
     const mk=key+'|'+(+$('bgtol').value);
-    if(cc.mkey!==mk){
-      const rc={x0:Math.max(0,Math.floor(ix/cw)),y0:Math.max(0,Math.floor(iy/rh)),x1:Math.min(cols,Math.ceil((ix+iw)/cw)),y1:Math.min(rows,Math.ceil((iy+ih)/rh))};
-      cc.mask=bgMask(cc.data,cols,rows,+$('bgtol').value,rc); cc.mkey=mk;
-    }
+    if(cc.mkey!==mk){ cc.mask=bgMask(cc.data,cols,rows,+$('bgtol').value,g); cc.mkey=mk; }
     mask=cc.mask;
   }
   return {d:cc.data,mask};
@@ -738,7 +789,7 @@ function cellData(ps,g){
 // calcula, para cada célula visível, a posição, o caractere, a cor e a opacidade e entrega a fn(...)
 function passCells(ps,w,h,T,fn){
   const g=passGeom(ps,w,h), {cols,rows,cw,rh}=g;
-  if(ps.obj) ps.obj._r={x0:g.ix,y0:g.iy,x1:g.ix+g.iw,y1:g.iy+g.ih};
+  if(ps.item) ps.item._r={cx:g.cx,cy:g.cy,hw:g.iw/2,hh:g.ih/2,rot:g.rotDeg};
   const {d,mask}=cellData(ps,g);
   const inv=$('invert').checked, br=+$('bright').value, ct=+$('contrast').value, th=+$('thresh').value, nz=+$('noise').value;
   const fade=$('fade').checked, colorful=$('colorful').checked, gOn=$('grad').checked;
@@ -785,7 +836,7 @@ function passCells(ps,w,h,T,fn){
     }
   }
 }
-// desenho 2D (padrão). Com "Giro 3D (imagens)" as células são giradas em perspectiva.
+// desenho 2D (padrão). Com "Giro 3D (2D)" as células são giradas em perspectiva.
 function asciiPass(c,ps,k,w,h,T){
   const g0=passGeom(ps,w,h), amp=+$('amp').value;
   const R3=T!=null&&FX.includes('rot3d'), a3=Math.sin((T||0)*0.9)*(0.3+amp*0.7), cA=Math.cos(a3), sA=Math.sin(a3), dep=w*0.18*(0.5+amp), f3=w*1.2;
@@ -915,41 +966,101 @@ function volumeDraw(c,passes,w,h,k,T){
 }
 
 // foto de fundo: cobre a tela (encaixe por cobertura + zoom) e não passa pelo efeito ASCII
-function drawBg(c,im,w,h){
-  const z=+$('bgZoom').value||1, s=Math.max(w/im.width,h/im.height)*z, dw=im.width*s, dh=im.height*s;
-  c.save(); c.globalAlpha=+$('bgOp').value; c.drawImage(im,(w-dw)/2,(h-dh)/2,dw,dh); c.restore();
+function drawBg(c,src,w,h){
+  const z=+$('bgZoom').value||1, s=Math.max(w/src.width,h/src.height)*z, dw=src.width*s, dh=src.height*s;
+  c.save(); c.globalAlpha=+$('bgOp').value; c.drawImage(src,(w-dw)/2,(h-dh)/2,dw,dh); c.restore();
+}
+// mapa de degradê: cada tom da foto vira uma cor da escala (sombras → meio → luzes). Fica em cache.
+let BGMAP={key:null,cv:null};
+function bgSource(im){
+  if(!im||!$('bgMap').checked) return im;
+  const stops=[$('bgA').value,$('bgB').value]; if($('bgMid').checked) stops.splice(1,0,$('bgC').value);
+  const key=im.src.length+'|'+im.src.slice(-40)+'|'+stops.join();
+  if(BGMAP.key===key) return BGMAP.cv;
+  const s=Math.min(1,900/Math.max(im.width,im.height)), cv=document.createElement('canvas');
+  cv.width=Math.max(1,Math.round(im.width*s)); cv.height=Math.max(1,Math.round(im.height*s));
+  const c=cv.getContext('2d',{willReadFrequently:true});
+  c.drawImage(im,0,0,cv.width,cv.height);
+  const id=c.getImageData(0,0,cv.width,cv.height), d=id.data, lut=lutFrom(stops);
+  for(let i=0;i<d.length;i+=4){
+    const L=Math.round(0.299*d[i]+0.587*d[i+1]+0.114*d[i+2]), q=lut[L];
+    d[i]=q[0]; d[i+1]=q[1]; d[i+2]=q[2];
+  }
+  c.putImageData(id,0,0);
+  BGMAP={key,cv}; return cv;
+}
+function drawPlaceholder(c,w,h,k){
+  const m=Math.min(w,h)*0.08;
+  c.save(); c.strokeStyle='rgba(255,255,255,.22)'; c.lineWidth=2/k; c.setLineDash([8/k,6/k]);
+  c.strokeRect(m,m,w-2*m,h-2*m); c.setLineDash([]);
+  c.fillStyle='rgba(255,255,255,.55)'; c.textAlign='center'; c.textBaseline='middle';
+  const fsz=Math.min(w,h)*0.035;
+  c.font=`700 ${fsz}px Archivo, Arial, sans-serif`; c.fillText('Clique ou arraste uma foto aqui',w/2,h/2-fsz*0.7);
+  c.font=`400 ${fsz*0.6}px Archivo, Arial, sans-serif`; c.fillStyle='rgba(255,255,255,.38)'; c.fillText('ela vira arte ASCII na hora',w/2,h/2+fsz*0.6);
+  c.restore();
+}
+// contorno da foto ASCII selecionada, girado junto com ela, e alça de redimensionar no canto
+function drawAsciiSel(c,A,k){
+  const r=A._r;
+  c.save(); c.translate(r.cx,r.cy); c.rotate(r.rot*Math.PI/180);
+  c.strokeStyle='#d9ff6a'; c.lineWidth=1.5/k; c.setLineDash([5/k,4/k]);
+  c.strokeRect(-r.hw,-r.hh,2*r.hw,2*r.hh); c.setLineDash([]);
+  const s=9/k; c.fillStyle='#d9ff6a'; c.fillRect(r.hw-s/2,r.hh-s/2,s,s);
+  c.restore();
+}
+// passagem ASCII de uma chave da pilha ('main' ou 'x<id>'); null se não há imagem ou está oculta
+function asciiPassFor(key,scene){
+  if(key==='main'){
+    const M=scene===st?MAIN:{img:scene.img,x:scene.imgPos.x,y:scene.imgPos.y,sc:1,rot:0,visible:true};
+    if(!M.img||!M.visible) return null;
+    return {im:M.img,pos:{x:M.x,y:M.y},sc:M.sc,rot:M.rot||0,cid:'main',item:M};
+  }
+  const X=(scene.extras||[]).find(x=>'x'+x.id===key);
+  if(!X||!X.visible||!X.img) return null;
+  return {im:X.img,pos:{x:X.x,y:X.y},sc:X.sc,rot:X.rot||0,cid:'x'+X.id,item:X};
+}
+// ordem padrão de cenas sem pilha explícita (miniaturas): fundo, foto, extras, textos
+function defaultOrder(scene){
+  return [scene.bgImg?'bg':null, scene.img?'main':null, ...(scene.extras||[]).map(X=>'x'+X.id), ...(scene.layers||[]).map(L=>'t'+L.id)].filter(Boolean);
 }
 function render(cv,k,T,ui,scene){
-  scene=scene||st;
+  scene=scene||st; const live=scene===st;
+  if(live) ensureOrder();
   const w=P.w,h=P.h, cwid=Math.max(1,Math.round(w*k)), chei=Math.max(1,Math.round(h*k));
   if(cv.width!==cwid||cv.height!==chei){ cv.width=cwid; cv.height=chei; }
   const c=cv.getContext('2d');
   c.setTransform(k,0,0,k,0,0);
   c.globalAlpha=1; c.textAlign='left'; c.textBaseline='top';
   c.fillStyle=$('c-bg').value; c.fillRect(0,0,w,h);
-  if(scene.bgImg) drawBg(c,scene.bgImg,w,h);
 
-  const passes=[];
-  if(scene.img) passes.push({im:scene.img,pos:scene.imgPos,sc:+$('scale').value,cid:'main'});
-  (scene.extras||[]).forEach(X=>{ if(X.visible&&X.img) passes.push({im:X.img,pos:{x:X.x,y:X.y},sc:X.sc,cid:'x'+X.id,obj:X}); });
-  if(passes.length){
-    const used3d=scene===st && $('vol3d').checked && volumeDraw(c,passes,w,h,k,T);
-    if(!used3d) passes.forEach(ps=>asciiPass(c,ps,k,w,h,T));
-  } else if(ui){
-    const m=Math.min(w,h)*0.08;
-    c.save(); c.strokeStyle='rgba(255,255,255,.22)'; c.lineWidth=2/k; c.setLineDash([8/k,6/k]);
-    c.strokeRect(m,m,w-2*m,h-2*m); c.setLineDash([]);
-    c.fillStyle='rgba(255,255,255,.55)'; c.textAlign='center'; c.textBaseline='middle';
-    const fsz=Math.min(w,h)*0.035;
-    c.font=`700 ${fsz}px Archivo, Arial, sans-serif`; c.fillText('Clique ou arraste uma foto aqui',w/2,h/2-fsz*0.7);
-    c.font=`400 ${fsz*0.6}px Archivo, Arial, sans-serif`; c.fillStyle='rgba(255,255,255,.38)'; c.fillText('ela vira arte ASCII na hora',w/2,h/2+fsz*0.6);
-    c.restore();
-  }
-  scene.layers.forEach(L=>{ if(L.visible) drawLayer(c,L,T); });
-  if(ui){ const L=selLayer(); if(L&&L.visible) drawSelection(c,L,k); }
-  if(ui&&scene.selImg){
-    const X=(scene.extras||[]).find(x=>x.id===scene.selImg);
-    if(X&&X.visible&&X._r){ const r=X._r; c.save(); c.strokeStyle='#d9ff6a'; c.lineWidth=1.5/k; c.setLineDash([5/k,4/k]); c.strokeRect(r.x0,r.y0,r.x1-r.x0,r.y1-r.y0); c.setLineDash([]); c.restore(); }
+  // sequência de desenho na ordem da pilha (de baixo para cima)
+  const ord=live?st.order:defaultOrder(scene), seq=[];
+  ord.forEach(key=>{
+    if(key==='bg'){ if(scene.bgImg && scene.bgVis!==false) seq.push({kind:'bg'}); }
+    else if(key[0]==='t'){ const L=scene.layers.find(l=>'t'+l.id===key); if(L&&L.visible) seq.push({kind:'text',L}); }
+    else { const ps=asciiPassFor(key,scene); if(ps) seq.push({kind:'ascii',ps}); }
+  });
+  const anyAscii=seq.some(s=>s.kind==='ascii');
+  let batch=[], ph=false;
+  // fotos ASCII vizinhas na pilha são desenhadas juntas (o volume 3D as junta numa só passagem)
+  const flush=()=>{
+    if(!batch.length) return;
+    const used3d=live&&$('vol3d').checked&&volumeDraw(c,batch,w,h,k,T);
+    if(!used3d) batch.forEach(ps=>asciiPass(c,ps,k,w,h,T));
+    batch=[];
+  };
+  seq.forEach(s=>{
+    if(s.kind==='ascii'){ batch.push(s.ps); return; }
+    flush();
+    if(s.kind==='bg'){ drawBg(c,bgSource(scene.bgImg),w,h); return; }
+    if(!anyAscii&&ui&&!ph){ ph=true; drawPlaceholder(c,w,h,k); }
+    drawLayer(c,s.L,T);
+  });
+  flush();
+  if(!anyAscii&&ui&&!ph) drawPlaceholder(c,w,h,k);
+  if(ui&&live){
+    const S=selLayer(); if(S&&S.visible) drawSelection(c,S,k);
+    const A=selAscii(); if(A&&A.visible&&A._r) drawAsciiSel(c,A,k);
   }
 }
 
@@ -982,44 +1093,112 @@ const ICON={
   dup:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="5" y="5" width="8.5" height="8.5" rx="1.5"/><path d="M10.5 3V2.5H2.5v8H3"/></svg>',
   del:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.5 4h11M6 4V2.5h4V4M4 4l.7 9.5h6.6L12 4"/></svg>'
 };
-function selLayer(){ return st.layers.find(l=>l.id===st.sel)||null; }
+/* Chaves da pilha: 'bg' fundo, 'main' foto ASCII principal, 'x<id>' foto ASCII extra, 't<id>' texto.
+   st.order guarda a pilha de baixo para cima; a lista da tela mostra de cima para baixo, como no Photoshop. */
+const tKey=L=>'t'+L.id, xKey=X=>'x'+X.id;
+function itemByKey(k){
+  if(!k) return null;
+  if(k==='main') return st.img?MAIN:null;
+  if(k==='bg') return st.bgImg?{bg:true}:null;
+  if(k[0]==='t') return st.layers.find(l=>tKey(l)===k)||null;
+  if(k[0]==='x') return st.extras.find(x=>xKey(x)===k)||null;
+  return null;
+}
+// mantém a pilha em dia: remove o que não existe e põe o que falta (fundo embaixo, foto logo acima, textos e extras por cima)
+function ensureOrder(){
+  st.order=st.order.filter(k=>itemByKey(k));
+  const have=new Set(st.order);
+  if(st.bgImg && !have.has('bg')) st.order.unshift('bg');
+  if(st.img && !have.has('main')) st.order.splice(st.order.indexOf('bg')+1,0,'main');
+  st.extras.forEach(X=>{ const k=xKey(X); if(!have.has(k)) st.order.push(k); });
+  st.layers.forEach(L=>{ const k=tKey(L); if(!have.has(k)) st.order.push(k); });
+  if(st.sel && !itemByKey(st.sel)) st.sel=null;
+}
+function selLayer(){ return st.sel&&st.sel[0]==='t' ? (st.layers.find(l=>tKey(l)===st.sel)||null) : null; }
+function selAscii(){
+  if(st.sel==='main') return st.img?MAIN:null;
+  if(st.sel&&st.sel[0]==='x') return st.extras.find(x=>xKey(x)===st.sel)||null;
+  return null;
+}
 function layerName(L){ const t=L.text.replace(/\s+/g,' ').trim(); return t?t.slice(0,40):'Texto vazio'; }
+function assetName(k){
+  if(k==='main') return 'Foto principal';
+  if(k==='bg') return 'Foto de fundo';
+  return 'Foto '+(st.extras.findIndex(x=>xKey(x)===k)+1);
+}
 function renderList(){
+  ensureOrder();
   const ul=$('layers'); ul.innerHTML='';
-  [...st.layers].reverse().forEach(L=>{
-    const li=document.createElement('li');
-    li.className='layer'+(L.id===st.sel?' sel':'')+(L.visible?'':' off'); li.dataset.id=L.id;
-    li.innerHTML=`<button class="ib" data-act="vis" aria-label="${L.visible?'Ocultar':'Mostrar'} texto" title="${L.visible?'Ocultar':'Mostrar'}">${L.visible?ICON.eye:ICON.off}</button>
-      <button class="name" data-act="sel"><i>${Math.round(L.size)}px</i><span></span></button>
+  const ord=st.order;
+  for(let i=ord.length-1;i>=0;i--){
+    const k=ord[i], li=document.createElement('li'), isT=k[0]==='t';
+    const L=isT?st.layers.find(l=>tKey(l)===k):null;
+    const vis=isT?L.visible:(k==='main'?st.imgVis!==false:(k==='bg'?st.bgVis!==false:st.extras.find(x=>xKey(x)===k).visible));
+    const dupOk=isT||k[0]==='x';
+    li.className='layer'+(k===st.sel?' sel':'')+(vis?'':' off'); li.dataset.key=k;
+    li.innerHTML=`<button class="ib" data-act="vis" aria-label="${vis?'Ocultar':'Mostrar'} camada" title="${vis?'Ocultar':'Mostrar'}">${vis?ICON.eye:ICON.off}</button>
+      <button class="name" data-act="sel"><i>${isT?Math.round(L.size)+'px':(k==='bg'?'FUNDO':'ASCII')}</i><span></span></button>
       <span class="acts">
         <button class="ib" data-act="up" aria-label="Trazer para frente" title="Para frente">${ICON.up}</button>
         <button class="ib" data-act="down" aria-label="Enviar para trás" title="Para trás">${ICON.down}</button>
-        <button class="ib" data-act="dup" aria-label="Duplicar texto" title="Duplicar">${ICON.dup}</button>
-        <button class="ib del" data-act="del" aria-label="Excluir texto" title="Excluir">${ICON.del}</button>
+        ${dupOk?`<button class="ib" data-act="dup" aria-label="Duplicar" title="Duplicar">${ICON.dup}</button>`:''}
+        <button class="ib del" data-act="del" aria-label="Excluir" title="Excluir">${ICON.del}</button>
       </span>`;
-    li.querySelector('.name span').textContent=layerName(L);
-    li.querySelector('.name span').style.fontFamily=`"${L.font}", ${(FONTS[L.font]||FONTS.Archivo).fb}`;
+    const sp=li.querySelector('.name span');
+    sp.textContent=isT?layerName(L):assetName(k);
+    if(isT) sp.style.fontFamily=`"${L.font}", ${(FONTS[L.font]||FONTS.Archivo).fb}`;
     ul.appendChild(li);
-  });
-  $('layersEmpty').hidden=st.layers.length>0;
-  $('layerCount').textContent=st.layers.length?String(st.layers.length):'';
+  }
+  $('layersEmpty').hidden=ord.length>0;
+  $('layerCount').textContent=ord.length?String(ord.length):'';
 }
+function moveKey(k,d){
+  const i=st.order.indexOf(k), j=i+d;
+  if(i<0||j<0||j>=st.order.length) return;
+  [st.order[i],st.order[j]]=[st.order[j],st.order[i]];
+}
+function toggleVis(k){
+  if(k[0]==='t'){ const L=selLayerByKey(k); L.visible=!L.visible; }
+  else if(k==='main') st.imgVis=st.imgVis===false;
+  else if(k==='bg') st.bgVis=st.bgVis===false;
+  else { const X=st.extras.find(x=>xKey(x)===k); X.visible=!X.visible; }
+}
+function selLayerByKey(k){ return st.layers.find(l=>tKey(l)===k); }
 $('layers').addEventListener('click',e=>{
   const b=e.target.closest('button'); if(!b) return;
-  const id=+b.closest('li').dataset.id, i=st.layers.findIndex(l=>l.id===id), L=st.layers[i];
-  const act=b.dataset.act;
+  const k=b.closest('li').dataset.key, act=b.dataset.act;
   if(act!=='sel') markTouched();
-  if(act==='sel'){ select(id); }
-  else if(act==='vis'){ L.visible=!L.visible; }
-  else if(act==='up' && i<st.layers.length-1){ st.layers.splice(i,1); st.layers.splice(i+1,0,L); }
-  else if(act==='down' && i>0){ st.layers.splice(i,1); st.layers.splice(i-1,0,L); }
-  else if(act==='dup'){ duplicate(L); return; }
-  else if(act==='del'){ removeLayer(id); return; }
+  if(act==='sel'){ select(k); return; }
+  if(act==='vis') toggleVis(k);
+  else if(act==='up') moveKey(k,1);
+  else if(act==='down') moveKey(k,-1);
+  else if(act==='dup'){ dupKey(k); return; }
+  else if(act==='del'){ delKey(k); return; }
   renderList(); draw();
 });
-function select(id){ st.sel=id; st.selImg=null; renderList(); renderImgs(); refreshProps(); refreshImgProps(); draw(); }
-function duplicate(L){ const n=newLayer({...L,id:undefined}); n.id=uid++; n.x+=P.w*0.02; n.y+=P.w*0.02; st.layers.splice(st.layers.indexOf(L)+1,0,n); select(n.id); setStatus('Texto duplicado.'); }
-function removeLayer(id){ st.layers=st.layers.filter(l=>l.id!==id); if(st.sel===id) st.sel=null; renderList(); refreshProps(); draw(); setStatus('Texto excluído.'); }
+function select(key){ st.sel=key||null; renderList(); refreshProps(); draw(); }
+function duplicate(L){
+  const n=newLayer({...L,id:undefined}); n.id=uid++; n.x+=P.w*0.02; n.y+=P.w*0.02;
+  st.layers.push(n); st.order.splice(st.order.indexOf(tKey(L))+1,0,tKey(n));
+  select(tKey(n)); setStatus('Texto duplicado.');
+}
+function dupKey(k){
+  if(k[0]==='t'){ duplicate(selLayerByKey(k)); return; }
+  if(k[0]!=='x') return;
+  const X=st.extras.find(x=>xKey(x)===k);
+  const N={id:++xSeq,img:X.img,x:X.x+.02,y:X.y+.02,sc:X.sc,rot:X.rot||0,visible:X.visible};
+  st.extras.push(N); st.order.splice(st.order.indexOf(k)+1,0,xKey(N));
+  select(xKey(N)); setStatus('Imagem duplicada.');
+}
+function delKey(k){
+  if(!k) return;
+  if(k[0]==='t'){ st.layers=st.layers.filter(l=>tKey(l)!==k); setStatus('Texto excluído.'); }
+  else if(k==='main'){ st.img=null; setStatus('Foto principal removida.'); }
+  else if(k==='bg'){ st.bgImg=null; setStatus('Foto de fundo removida.'); }
+  else { st.extras=st.extras.filter(x=>xKey(x)!==k); setStatus('Imagem excluída.'); }
+  if(st.sel===k) st.sel=null;
+  ensureOrder(); renderList(); refreshProps(); draw();
+}
 
 function addText(kind){
   markTouched();
@@ -1029,14 +1208,33 @@ function addText(kind){
   else if(kind==='vertical') L=newLayer({...base,text:'VERTICAL',size:28*u,weight:800,ls:0.3,rot:-90,x:P.w*0.06,y:P.h*0.6});
   else if(kind==='title') L=newLayer({...base,text:'SEU TÍTULO',size:64*u,weight:900,lh:1});
   else { L=newLayer({...base,size:40*u,weight:700}); L.x=P.w/2-L.size*3; L.y=P.h/2-L.size/2; }
-  st.layers.push(L); select(L.id); ensureFonts();
+  st.layers.push(L); st.order.push(tKey(L)); select(tKey(L)); ensureFonts();
   const ta=$('p-text'); ta.focus(); ta.select();
 }
 function defaultTextColor(){ const l=st.layers[st.layers.length-1]; return l?l.color:'#ffffff'; }
 $('addText').addEventListener('click',()=>addText());
 document.querySelectorAll('[data-q]').forEach(b=>b.addEventListener('click',()=>addText(b.dataset.q)));
+$('addAsc').addEventListener('click',()=>$('fileX').click());
+$('fileX').addEventListener('change',e=>{ addExtraFiles(e.target.files); e.target.value=''; });
+function addExtraFiles(files){
+  [...files].filter(f=>f.type.startsWith('image/')).forEach(f=>{
+    const r=new FileReader();
+    r.onload=()=>loadImage(r.result,im=>{
+      markTouched(); const off=.3+.08*(st.extras.length%5);
+      const X={id:++xSeq,img:im,x:off,y:off,sc:.6,rot:0,visible:true};
+      st.extras.push(X); st.order.push(xKey(X)); select(xKey(X)); setStatus('Foto ASCII adicionada.'); scheduleCommit();
+    });
+    r.readAsDataURL(f);
+  });
+}
 
 /* propriedades */
+// abas do painel esquerdo
+$('tabs').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  [...$('tabs').children].forEach(x=>x.setAttribute('aria-selected',String(x===b)));
+  document.querySelectorAll('[data-panel]').forEach(p=>p.classList.toggle('on',p.dataset.panel===b.dataset.tab));
+});
 [['none','Sem efeito'],['wave','Ondulado'],['float','Flutuando'],['flicker','Cintilar'],['glitch','Glitch'],['spin3d','Giro 3D']].forEach(([v,n])=>{ const o=document.createElement('option'); o.value=v; o.textContent=n; $('p-fx').appendChild(o); });
 const fsel=$('p-font');
 Object.keys(FONTS).forEach(f=>{ const o=document.createElement('option'); o.value=f; o.textContent=f; o.style.fontFamily=`"${f}"`; fsel.appendChild(o); });
@@ -1048,7 +1246,16 @@ function fillWeights(L){
 }
 const pfmt={'p-lh':v=>(+v).toFixed(2),'p-ls':v=>Math.round(v*1000)/10+'%','p-width':v=>+v?Math.round(v)+' px':'Automática','p-op':v=>Math.round(v*100)+'%','p-rot':v=>Math.round(v)+'°'};
 function refreshProps(){
-  const L=selLayer(); $('props').hidden=!L; if(!L) return;
+  const L=selLayer(), A=selAscii(), B=st.sel==='bg'&&st.bgImg;
+  $('props').hidden=!L; $('propAsc').hidden=!A; $('propBg').hidden=!B;
+  $('propEmpty').hidden=!!(L||A||B);
+  if(A){
+    $('ascTitle').textContent=A===MAIN?'Foto principal':assetName(xKey(A));
+    $('ascSc').value=A.sc; $('o-ascSc').textContent=Math.round(A.sc*100)+'%';
+    $('ascRot').value=A.rot||0; $('o-ascRot').textContent=Math.round(A.rot||0)+'°';
+  }
+  if(B){ syncOut('bgOp'); syncOut('bgZoom'); }
+  if(!L) return;
   if(document.activeElement!==$('p-text')) $('p-text').value=L.text;
   fsel.value=L.font; fillWeights(L);
   $('p-size-r').max=Math.max(200,Math.round(Math.max(P.w,P.h)*0.4),Math.ceil(L.size*1.5)); $('p-size-r').value=L.size; $('p-size').value=Math.round(L.size*10)/10;
@@ -1070,15 +1277,11 @@ function bindProp(id,key,parse,ev='input'){
     if(key==='size'){ $('p-size-r').value=v; if(id!=='p-size') $('p-size').value=Math.round(v*10)/10; }
     if(key==='font'){ fillWeights(L); $('p-italic').disabled=!(FONTS[L.font]||{}).it; if(!(FONTS[L.font]||{}).it) L.italic=false; ensureFonts(); }
     if(key==='weight'||key==='italic') ensureFonts();
-    if(key==='text'||key==='font'||key==='size') updateListItem(L);
+    if(key==='text'||key==='font'||key==='size') updateListItem();
     draw();
   });
 }
-function updateListItem(L){
-  const li=$('layers').querySelector(`li[data-id="${L.id}"]`); if(!li){ renderList(); return; }
-  const sp=li.querySelector('.name span'); sp.textContent=layerName(L); sp.style.fontFamily=`"${L.font}", ${(FONTS[L.font]||FONTS.Archivo).fb}`;
-  li.querySelector('.name i').textContent=Math.round(L.size)+'px';
-}
+function updateListItem(){ renderList(); }
 const num=el=>el.value===''?null:+el.value;
 bindProp('p-text','text',el=>el.value);
 bindProp('p-font','font',el=>el.value,'change');
@@ -1098,51 +1301,14 @@ bindProp('p-x','x',num); bindProp('p-y','y',num);
 $('p-align').addEventListener('click',e=>{ const b=e.target.closest('button'); const L=selLayer(); if(!b||!L) return; markTouched(); L.align=b.dataset.a; [...$('p-align').children].forEach(x=>x.setAttribute('aria-pressed',x===b)); draw(); });
 $('p-center').addEventListener('click',()=>{ const L=selLayer(); if(!L) return; markTouched(); const g=L._g||layout(pv.getContext('2d'),L); L.x=(P.w-g.bw)/2; refreshXY(); draw(); });
 
-/* ---------- imagens extras ---------- */
-function renderImgs(){
-  const ul=$('imgs'); ul.innerHTML='';
-  [...st.extras].map((X,i)=>[X,i]).reverse().forEach(([X,i])=>{
-    const li=document.createElement('li');
-    li.className='layer'+(X.id===st.selImg?' sel':'')+(X.visible?'':' off'); li.dataset.id=X.id;
-    li.innerHTML=`<button class="ib" data-act="vis" aria-label="${X.visible?'Ocultar':'Mostrar'} imagem" title="${X.visible?'Ocultar':'Mostrar'}">${X.visible?ICON.eye:ICON.off}</button>
-      <button class="name" data-act="sel"><i>${i+1}</i><span>Imagem ${i+1}</span></button>
-      <span class="acts"><button class="ib del" data-act="del" aria-label="Excluir imagem" title="Excluir">${ICON.del}</button></span>`;
-    ul.appendChild(li);
-  });
-  $('imgsEmpty').hidden=st.extras.length>0;
-  $('imgCount').textContent=st.extras.length?String(st.extras.length):'';
-}
-function refreshImgProps(){
-  const X=st.extras.find(x=>x.id===st.selImg);
-  $('imgProps').hidden=!X; if(!X) return;
-  $('ix-sc').value=X.sc; $('o-ix-sc').textContent=Math.round(X.sc*100)+'%';
-}
-$('imgs').addEventListener('click',e=>{
-  const b=e.target.closest('button'); if(!b) return;
-  const id=+b.closest('li').dataset.id, i=st.extras.findIndex(x=>x.id===id), X=st.extras[i], act=b.dataset.act;
-  if(!X) return;
-  if(act!=='sel') markTouched();
-  if(act==='sel'){ st.sel=null; st.selImg=id; renderList(); renderImgs(); refreshProps(); refreshImgProps(); }
-  else if(act==='vis'){ X.visible=!X.visible; renderImgs(); }
-  else if(act==='del'){ st.extras.splice(i,1); if(st.selImg===id) st.selImg=null; renderImgs(); refreshImgProps(); }
-  draw();
-});
-$('ix-sc').addEventListener('input',()=>{ const X=st.extras.find(x=>x.id===st.selImg); if(!X) return; X.sc=+$('ix-sc').value; $('o-ix-sc').textContent=Math.round(X.sc*100)+'%'; draw(); });
-$('ix-center').addEventListener('click',()=>{ const X=st.extras.find(x=>x.id===st.selImg); if(!X) return; markTouched(); X.x=.5; X.y=.5; draw(); });
-function addExtraFiles(files){
-  [...files].filter(f=>f.type.startsWith('image/')).forEach(f=>{
-    const r=new FileReader();
-    r.onload=()=>loadImage(r.result,im=>{
-      markTouched(); const off=.3+.08*(st.extras.length%5);
-      const X={id:++xSeq,img:im,x:off,y:off,sc:.6,visible:true};
-      st.extras.push(X); st.sel=null; st.selImg=X.id;
-      renderList(); renderImgs(); refreshProps(); refreshImgProps(); setStatus('Imagem adicionada.'); draw(); scheduleCommit();
-    });
-    r.readAsDataURL(f);
-  });
-}
-$('addImg').addEventListener('click',()=>$('fileX').click());
-$('fileX').addEventListener('change',e=>{ addExtraFiles(e.target.files); e.target.value=''; });
+/* fotos ASCII: tamanho e ângulo */
+$('ascSc').addEventListener('input',()=>{ const A=selAscii(); if(!A) return; A.sc=+$('ascSc').value; $('o-ascSc').textContent=Math.round(A.sc*100)+'%'; draw(); });
+$('ascRot').addEventListener('input',()=>{ const A=selAscii(); if(!A) return; A.rot=+$('ascRot').value; $('o-ascRot').textContent=Math.round(A.rot)+'°'; draw(); });
+$('ascCenter').addEventListener('click',()=>{ const A=selAscii(); if(!A) return; markTouched(); A.x=.5; A.y=.5; draw(); });
+$('ascReset').addEventListener('click',()=>{ const A=selAscii(); if(!A) return; markTouched(); A.sc=A===MAIN?1:.6; A.rot=0; refreshProps(); draw(); });
+// compatibilidade com chamadas antigas
+function renderImgs(){ renderList(); }
+function refreshImgProps(){ refreshProps(); }
 
 /* ---------- interação na tela ---------- */
 let drag=null;
@@ -1152,38 +1318,53 @@ function hit(p){
   const k=pv.width/P.w, pad=6/k, hr=12/k;
   const S=selLayer();
   if(S&&S.visible&&S._g){ const q=local(S,p); if(Math.abs(q.x-(S._g.bw+pad))<hr&&Math.abs(q.y-(S._g.bh+pad))<hr) return {type:'scale',L:S}; }
-  for(let i=st.layers.length-1;i>=0;i--){
-    const L=st.layers[i]; if(!L.visible||!L._g) continue;
-    const q=local(L,p); if(q.x>=-pad&&q.x<=L._g.bw+pad&&q.y>=-pad&&q.y<=L._g.bh+pad) return {type:'move',L};
+  const A=selAscii();
+  if(A&&A.visible&&A._r){ const r=A._r, q=local({x:r.cx,y:r.cy,rot:r.rot},p); if(Math.abs(q.x-(r.hw+pad))<hr&&Math.abs(q.y-(r.hh+pad))<hr) return {type:'ascale',A}; }
+  // de cima para baixo na pilha
+  for(let i=st.order.length-1;i>=0;i--){
+    const key=st.order[i];
+    if(key[0]==='t'){
+      const L=selLayerByKey(key); if(!L||!L.visible||!L._g) continue;
+      const q=local(L,p); if(q.x>=-pad&&q.x<=L._g.bw+pad&&q.y>=-pad&&q.y<=L._g.bh+pad) return {type:'move',L};
+    } else if(key!=='bg'){
+      const X=itemByKey(key); if(!X||!X.visible||!X.img||!X._r) continue;
+      const r=X._r, q=local({x:r.cx,y:r.cy,rot:r.rot},p);
+      if(Math.abs(q.x)<=r.hw&&Math.abs(q.y)<=r.hh) return {type:'ascii',A:X};
+    }
   }
-  for(let i=st.extras.length-1;i>=0;i--){ const X=st.extras[i], r=X._r; if(X.visible&&r&&p.x>=r.x0&&p.x<=r.x1&&p.y>=r.y0&&p.y<=r.y1) return {type:'ximg',X}; }
-  return st.img?{type:'img'}:{type:'none'};
+  return st.bgImg?{type:'bg'}:{type:'none'};
 }
+const keyOfA=A=>A===MAIN?'main':xKey(A);
 pv.addEventListener('pointerdown',e=>{
   const p=toP(e), H=hit(p);
-  if(H.type==='none'){ if(st.sel||st.selImg){ st.sel=null; st.selImg=null; renderList(); renderImgs(); refreshProps(); refreshImgProps(); draw(); } else $('file').click(); return; }
-  if(H.type==='img'){ if(st.sel||st.selImg){ st.sel=null; st.selImg=null; renderList(); renderImgs(); refreshProps(); refreshImgProps(); } drag={type:'img',p0:p,s0:{...st.imgPos}}; }
-  else if(H.type==='ximg'){ st.sel=null; st.selImg=H.X.id; renderList(); renderImgs(); refreshProps(); refreshImgProps(); drag={type:'ximg',X:H.X,p0:p,s0:{x:H.X.x,y:H.X.y}}; }
-  else {
-    if(st.sel!==H.L.id) select(H.L.id);
-    const L=H.L;
+  if(H.type==='none'){ if(st.sel) select(null); else if(!st.img) $('file').click(); return; }
+  if(H.type==='bg'){ if(st.sel!=='bg') select('bg'); return; }
+  if(H.type==='ascii'){
+    if(st.sel!==keyOfA(H.A)) select(keyOfA(H.A));
+    drag={type:'ascii',A:H.A,p0:p,s0:{x:H.A.x,y:H.A.y}};
+  } else if(H.type==='ascale'){
+    if(st.sel!==keyOfA(H.A)) select(keyOfA(H.A));
+    const r=H.A._r, q=local({x:r.cx,y:r.cy,rot:r.rot},p);
+    drag={type:'ascale',A:H.A,d0:Math.max(1,Math.hypot(q.x,q.y)),s0:H.A.sc};
+  } else {
+    const L=H.L; if(st.sel!==tKey(L)) select(tKey(L));
     drag=H.type==='move'?{type:'move',L,p0:p,s0:{x:L.x,y:L.y}}:{type:'scale',L,d0:Math.hypot(local(L,p).x,local(L,p).y),s0:L.size,w0:L.width};
   }
-  pv.setPointerCapture(e.pointerId); pv.style.cursor=drag.type==='scale'?'nwse-resize':'grabbing';
+  pv.setPointerCapture(e.pointerId); pv.style.cursor=(drag.type==='scale'||drag.type==='ascale')?'nwse-resize':'grabbing';
 });
 pv.addEventListener('pointermove',e=>{
   const p=toP(e);
   if(drag) markTouched();
-  if(!drag){ const H=hit(p); pv.style.cursor=H.type==='scale'?'nwse-resize':H.type==='move'?'move':(H.type==='img'||H.type==='ximg')?'grab':'pointer'; return; }
-  if(drag.type==='img'){ st.imgPos={x:drag.s0.x+(p.x-drag.p0.x)/P.w, y:drag.s0.y+(p.y-drag.p0.y)/P.h}; }
-  else if(drag.type==='ximg'){ drag.X.x=drag.s0.x+(p.x-drag.p0.x)/P.w; drag.X.y=drag.s0.y+(p.y-drag.p0.y)/P.h; }
+  if(!drag){ const H=hit(p); pv.style.cursor=(H.type==='scale'||H.type==='ascale')?'nwse-resize':(H.type==='move'||H.type==='ascii')?'move':H.type==='bg'?'pointer':'default'; return; }
+  if(drag.type==='ascii'){ drag.A.x=drag.s0.x+(p.x-drag.p0.x)/P.w; drag.A.y=drag.s0.y+(p.y-drag.p0.y)/P.h; }
+  else if(drag.type==='ascale'){ const r=drag.A._r, q=local({x:r.cx,y:r.cy,rot:r.rot},p); drag.A.sc=clamp(drag.s0*Math.hypot(q.x,q.y)/drag.d0,.05,6); refreshProps(); }
   else if(drag.type==='move'){ drag.L.x=drag.s0.x+p.x-drag.p0.x; drag.L.y=drag.s0.y+p.y-drag.p0.y; refreshXY(); }
-  else { const q=local(drag.L,p), f=Math.max(0.05,Math.hypot(q.x,q.y)/Math.max(1,drag.d0)); drag.L.size=Math.max(2,drag.s0*f); if(drag.w0) drag.L.width=drag.w0*f; refreshXY(); updateListItem(drag.L); }
+  else { const q=local(drag.L,p), f=Math.max(0.05,Math.hypot(q.x,q.y)/Math.max(1,drag.d0)); drag.L.size=Math.max(2,drag.s0*f); if(drag.w0) drag.L.width=drag.w0*f; refreshXY(); updateListItem(); }
   draw();
 });
-const endDrag=()=>{ if(drag&&drag.type==='scale') refreshProps(); drag=null; pv.style.cursor=''; };
+const endDrag=()=>{ if(drag) refreshProps(); drag=null; pv.style.cursor=''; };
 pv.addEventListener('pointerup',endDrag); pv.addEventListener('pointercancel',endDrag);
-pv.addEventListener('dblclick',e=>{ const H=hit(toP(e)); if(H.L){ const ta=$('p-text'); ta.focus(); ta.select(); } });
+pv.addEventListener('dblclick',e=>{ const H=hit(toP(e)); if(H.type==='move'){ const ta=$('p-text'); ta.focus(); ta.select(); } });
 
 document.addEventListener('keydown',e=>{
   const mod=e.ctrlKey||e.metaKey, kk=(e.key||'').toLowerCase();
@@ -1200,14 +1381,14 @@ document.addEventListener('keydown',e=>{
     return;
   }
   if(document.activeElement!==pv) return;
-  const L=selLayer(); if(!L) return;
+  const O=selLayer()||selAscii(); if(!O) return;
   if(e.key.startsWith('Arrow')||e.key==='Delete'||e.key==='Backspace'||(e.ctrlKey||e.metaKey)) markTouched();
   const step=e.shiftKey?10:1;
   const mv={ArrowLeft:[-step,0],ArrowRight:[step,0],ArrowUp:[0,-step],ArrowDown:[0,step]}[e.key];
-  if(mv){ e.preventDefault(); L.x+=mv[0]; L.y+=mv[1]; refreshXY(); draw(); }
-  else if(e.key==='Delete'||e.key==='Backspace'){ e.preventDefault(); removeLayer(L.id); }
-  else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='d'){ e.preventDefault(); duplicate(L); }
-  else if(e.key==='Escape'){ st.sel=null; renderList(); refreshProps(); draw(); }
+  if(mv){ e.preventDefault(); O.x+=mv[0]; O.y+=mv[1]; refreshProps(); draw(); }
+  else if(e.key==='Delete'||e.key==='Backspace'){ e.preventDefault(); delKey(st.sel); }
+  else if((e.ctrlKey||e.metaKey)&&kk==='d'){ e.preventDefault(); dupKey(st.sel); }
+  else if(e.key==='Escape'){ select(null); }
 });
 
 /* ---------- novo projeto / tamanho da tela ---------- */
@@ -1299,8 +1480,8 @@ $('npCreate').addEventListener('click',()=>{
   if(dlg.mode==='new'){
     P.w=w; P.h=h;
     const T=makeTemplate(dlg.tpl,w,h);
-    st.img=T.img?st.sampleImg:null; st.bgImg=null; st.extras=[]; st.selImg=null; st.imgPos=T.imgPos; st.layers=T.layers; st.sel=null;
-    $('scale').value=1; syncOut('scale');
+    st.img=T.img?st.sampleImg:null; st.imgPos=T.imgPos; st.imgSc=1; st.imgRot=0; st.imgVis=true;
+    st.bgImg=null; st.bgVis=true; st.extras=[]; st.layers=T.layers; st.sel=null; st.order=[]; ensureOrder();
   } else {
     const sx=w/P.w, sy=h/P.h, s=unitOf(w,h)/unitOf(P.w,P.h);
     st.layers.forEach(L=>{ L.x*=sx; L.y*=sy; L.size*=s; L.width*=s; });
@@ -1330,7 +1511,7 @@ function projectChanged(){
 }
 
 /* ---------- desfazer / refazer ---------- */
-const SET_IDS=['bgOp','bgZoom','vres','vol3d','vYaw','vPitch','vDep','vLayers','scale','cols','lh','bright','contrast','thresh','noise','speed','amp','vdur','expScale','custom','fillText','c-fg','c-bg','invert','fade','colorful','autosort','flowInside','skipSpaces','rmbg','bgtol','grad','gradType','gradAng','gradA','gradB','gradC','gradMid','vfmt'];
+const SET_IDS=['bgOp','bgZoom','bgMap','bgA','bgB','bgC','bgMid','vres','vol3d','vYaw','vPitch','vDep','vLayers','cols','lh','bright','contrast','thresh','noise','speed','amp','vdur','expScale','custom','fillText','c-fg','c-bg','invert','fade','colorful','autosort','flowInside','skipSpaces','rmbg','bgtol','grad','gradType','gradAng','gradA','gradB','gradC','gradMid','vfmt'];
 let imgSeq=0;
 const hist={undo:[],redo:[],cur:null,curKey:undefined,timer:0,restoring:false};
 function readSettings(){
@@ -1353,14 +1534,18 @@ function setMode(m){
   $('modeChars').hidden=m!=='chars'; $('modeText').hidden=m!=='text';
 }
 function snapshot(){
-  return {P:{w:P.w,h:P.h,name:P.name}, layers:st.layers.map(L=>{ const o={...L}; delete o._g; return o; }),
-    imgPos:{...st.imgPos}, img:st.img, bgImg:st.bgImg, extras:st.extras.map(X=>({id:X.id,img:X.img,x:X.x,y:X.y,sc:X.sc,visible:X.visible})), settings:readSettings(), mode:st.mode};
+  return {P:{w:P.w,h:P.h,name:P.name},
+    layers:st.layers.map(L=>{ const o={...L}; delete o._g; return o; }),
+    extras:st.extras.map(X=>({id:X.id,img:X.img,x:X.x,y:X.y,sc:X.sc,rot:X.rot||0,visible:X.visible})),
+    imgPos:{...st.imgPos}, imgSc:st.imgSc, imgRot:st.imgRot, imgVis:st.imgVis!==false, img:st.img,
+    bgImg:st.bgImg, bgVis:st.bgVis!==false, order:[...st.order],
+    settings:readSettings(), mode:st.mode};
 }
 function keyOf(s){
   if(s.img && !s.img.__k) s.img.__k=++imgSeq;
   s.extras.forEach(X=>{ if(!X.img.__k) X.img.__k=++imgSeq; });
   if(s.bgImg && !s.bgImg.__k) s.bgImg.__k=++imgSeq;
-  return JSON.stringify([s.P,s.layers,s.imgPos,s.img?s.img.__k:0,s.settings,s.mode,s.extras.map(X=>[X.id,X.x,X.y,X.sc,X.visible,X.img.__k]),s.bgImg?s.bgImg.__k:0]);
+  return JSON.stringify([s.P,s.layers,s.imgPos,s.imgSc,s.imgRot,s.imgVis,s.img?s.img.__k:0,s.bgVis,s.bgImg?s.bgImg.__k:0,s.order,s.settings,s.mode,s.extras.map(X=>[X.id,X.x,X.y,X.sc,X.rot,X.visible,X.img.__k])]);
 }
 function updateHistBtns(){ $('btnUndo').disabled=!hist.undo.length; $('btnRedo').disabled=!hist.redo.length; }
 function rebase(){ hist.cur=snapshot(); hist.curKey=keyOf(hist.cur); updateHistBtns(); }
@@ -1379,13 +1564,14 @@ function applySnapshot(s){
   try{
     P.w=s.P.w; P.h=s.P.h; P.name=s.P.name||'Sem título';
     st.layers=s.layers.map(L=>({...L}));
-    st.imgPos={...s.imgPos}; st.img=s.img||null;
-    st.bgImg=s.bgImg||null;
-    st.extras=(s.extras||[]).map(X=>({...X})); if(!st.extras.some(x=>x.id===st.selImg)) st.selImg=null;
-    if(!st.layers.some(l=>l.id===st.sel)) st.sel=null;
+    st.extras=(s.extras||[]).map(X=>({...X}));
+    st.imgPos={...s.imgPos}; st.imgSc=s.imgSc||1; st.imgRot=s.imgRot||0; st.imgVis=s.imgVis!==false; st.img=s.img||null;
+    st.bgImg=s.bgImg||null; st.bgVis=s.bgVis!==false;
+    st.order=[...(s.order||[])];
+    ensureOrder();
     projectChanged();
     applySettings(s.settings||{}); setMode(s.mode||'chars');
-    renderList(); renderImgs(); refreshProps(); refreshImgProps(); draw();
+    renderList(); refreshProps(); draw();
   } finally { hist.restoring=false; }
 }
 // chamado DEPOIS de uma mudança que deve poder ser desfeita (hist.cur guarda o estado anterior)
@@ -1400,9 +1586,15 @@ $('btnRedo').addEventListener('click',redo);
 },true));
 
 /* ---------- salvar e abrir projeto (arquivo .sao-ascii.json) ---------- */
+// no arquivo, a pilha usa posições ('t:0', 'x:1') em vez de ids, que mudam ao abrir
 function projectData(){
   const s=snapshot();
-  return {app:'sao-ascii',version:1,savedAt:new Date().toISOString(),P:s.P,layers:s.layers,imgPos:s.imgPos,mode:s.mode,settings:s.settings,image:st.img?st.img.src:null,extras:s.extras.map(X=>({x:X.x,y:X.y,sc:X.sc,visible:X.visible,image:X.img.src})),bgImage:st.bgImg?st.bgImg.src:null};
+  const tok=k=>{
+    if(k==='bg'||k==='main') return k;
+    if(k[0]==='x') return 'x:'+s.extras.findIndex(X=>xKey(X)===k);
+    return 't:'+s.layers.findIndex(L=>tKey(L)===k);
+  };
+  return {app:'sao-ascii',version:2,savedAt:new Date().toISOString(),P:s.P,layers:s.layers,imgPos:s.imgPos,imgSc:s.imgSc,imgRot:s.imgRot,imgVis:s.imgVis,bgVis:s.bgVis,order:s.order.map(tok),mode:s.mode,settings:s.settings,image:st.img?st.img.src:null,extras:s.extras.map(X=>({x:X.x,y:X.y,sc:X.sc,rot:X.rot||0,visible:X.visible,image:X.img.src})),bgImage:st.bgImg?st.bgImg.src:null};
 }
 $('btnSave').addEventListener('click',async()=>{
   setStatus('Salvando projeto…');
@@ -1416,14 +1608,30 @@ function openProject(f){
   r.onload=()=>{
     let d=null; try{ d=JSON.parse(r.result); }catch(err){}
     if(!d||d.app!=='sao-ascii'||!d.P||!Array.isArray(d.layers)){ setStatus('Esse arquivo não é um projeto Saô ASCII.'); return; }
-    const finish=(img,extras,bgImg)=>{
+    const finish=(img,ex,bgImg)=>{
       flushPending();
       const layers=d.layers.map(L=>{ const n=newLayer(L); n.id=uid++; return n; });
-      applySnapshot({P:{w:+d.P.w||2000,h:+d.P.h||3000,name:d.P.name||'Sem título'},layers,imgPos:d.imgPos||{x:.5,y:.5},img,extras,bgImg,settings:d.settings||{},mode:d.mode||'chars'});
+      let order=null;
+      if(Array.isArray(d.order)){
+        order=d.order.map(t=>{
+          const s=String(t), i=+s.slice(2);
+          if(s==='bg'||s==='main') return s;
+          if(s.startsWith('x:')&&ex[i]) return 'x'+ex[i].id;
+          if(s.startsWith('t:')&&layers[i]) return 't'+layers[i].id;
+          return null;
+        }).filter(Boolean);
+      }
+      applySnapshot({P:{w:+d.P.w||2000,h:+d.P.h||3000,name:d.P.name||'Sem título'},layers,extras:ex,
+        imgPos:d.imgPos||{x:.5,y:.5},imgSc:(+d.imgSc)||1,imgRot:+d.imgRot||0,imgVis:d.imgVis!==false,bgVis:d.bgVis!==false,
+        img,bgImg,order,settings:d.settings||{},mode:d.mode||'chars'});
       endStep();
       setStatus('Projeto aberto.');
     };
-    const go=img=>{ Promise.all((d.extras||[]).filter(e=>e&&e.image).map(e=>new Promise(res=>loadImage(e.image,im=>res({id:++xSeq,img:im,x:+e.x,y:+e.y,sc:+e.sc||.6,visible:e.visible!==false}))))).then(ex=>{ if(d.bgImage) loadImage(d.bgImage,bi=>finish(img,ex,bi)); else finish(img,ex,null); }); };
+    const go=img=>{
+      Promise.all((d.extras||[]).filter(e=>e&&e.image).map(e=>new Promise(res=>loadImage(e.image,im=>res({id:++xSeq,img:im,x:+e.x,y:+e.y,sc:+e.sc||.6,rot:+e.rot||0,visible:e.visible!==false}))))).then(ex=>{
+        if(d.bgImage) loadImage(d.bgImage,bi=>finish(img,ex,bi)); else finish(img,ex,null);
+      });
+    };
     if(d.image) loadImage(d.image,go); else go(null);
   };
   r.readAsText(f);
@@ -1520,9 +1728,9 @@ document.fonts && document.fonts.ready.then(()=>{ draw(); drawThumbs(); });
 /* ---------- início: exemplo pronto por trás + diálogo de novo projeto ---------- */
 (function init(){
   refreshFx();
-  const T=makeTemplate('example',P.w,P.h); st.layers=T.layers; st.imgPos=T.imgPos;
+  const T=makeTemplate('example',P.w,P.h); st.layers=T.layers; st.imgPos=T.imgPos; st.extras=[]; st.bgImg=null; st.order=[];
   projectChanged(); touched=false;
-  loadImage(SAMPLE,im=>{ st.sampleImg=im; st.img=im; draw(); drawThumbs(); if(hist.curKey===undefined) rebase(); });
+  loadImage(SAMPLE,im=>{ st.sampleImg=im; st.img=im; ensureOrder(); draw(); drawThumbs(); if(hist.curKey===undefined) rebase(); });
   openNP('new');
 })();
 </script>
