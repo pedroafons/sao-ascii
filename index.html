@@ -703,7 +703,14 @@ function wrapLine(c,text,maxW,ls){
   }
   out.push(line); return out;
 }
+let fontGen=0; const LAYOUT_C=new WeakMap();
 function layout(c,L){
+  const key=[L.text,L.font,L.weight,L.italic,L.size,L.ls,L.width,L.lh,L.upper,fontGen].join('\u0001');
+  const hit=LAYOUT_C.get(L);
+  if(hit&&hit.key===key){ c.font=fontStr(L); return hit.g; }
+  const g=layoutRaw(c,L); LAYOUT_C.set(L,{key,g}); return g;
+}
+function layoutRaw(c,L){
   c.font=fontStr(L);
   const ls=L.ls*L.size, txt=L.upper?L.text.toUpperCase():L.text;
   const lines=[]; txt.split('\n').forEach(p=>lines.push(...wrapLine(c,p,L.width,ls)));
@@ -857,7 +864,7 @@ function asciiPass(c,ps,k,w,h,T){
 
 /* ---------- volume 3D com WebGL 2 ---------- */
 // cada célula vira uma pilha de quads (camadas) com a letra; o brilho define o relevo
-const AT={tw:128,th:214,cols:16,rows:8};
+const AT={tw:192,th:320,cols:16,rows:8};
 const SPIN_P=10; // unidades de tempo por volta de 360° (com velocidade 1× dá ~12 s)
 const VOL={ok:undefined,cv:null,gl:null,prog:null,vao:null,ibuf:null,tex:null,map:new Map(),dirty:true,buf:new Float32Array(13*4096),U:{}};
 function volInit(){
@@ -898,7 +905,7 @@ void main(){ float a=texture(uTex,vUV).a*vCol.a; if(a<0.02) discard; o=vec4(vCol
   attr('aPos',3,0); attr('aSize',2,12); attr('aUV',4,20); attr('aCol',4,36);
   gl.bindVertexArray(null);
   const tex=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,tex);
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
   Object.assign(VOL,{cv,gl,prog,vao,ibuf:ib,tex});
   ['uHalf','uYaw','uPitch','uFocal','uZR','uTex'].forEach(n=>VOL.U[n]=gl.getUniformLocation(prog,n));
@@ -922,6 +929,7 @@ function atlasUpload(){
   VOL.map.forEach((i,ch)=>x2.fillText(ch,(i%cols)*tw,((i/cols)|0)*th));
   gl.bindTexture(gl.TEXTURE_2D,tex); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);
   gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,ac);
+  gl.generateMipmap(gl.TEXTURE_2D); // glifos pequenos (vídeo/exportação grande) não ficam serrilhados
   VOL.dirty=false;
 }
 function volumeDraw(c,passes,w,h,k,T){
@@ -972,12 +980,13 @@ function drawBg(c,src,w,h){
 }
 // mapa de degradê: cada tom da foto vira uma cor da escala (sombras → meio → luzes). Fica em cache.
 let BGMAP={key:null,cv:null};
-function bgSource(im){
+function bgSource(im,want){
   if(!im||!$('bgMap').checked) return im;
   const stops=[$('bgA').value,$('bgB').value]; if($('bgMid').checked) stops.splice(1,0,$('bgC').value);
-  const key=im.src.length+'|'+im.src.slice(-40)+'|'+stops.join();
+  const lim=Math.min(3600,Math.max(900,Math.ceil((want||900)/256)*256));
+  const key=im.src.length+'|'+im.src.slice(-40)+'|'+stops.join()+'|'+lim;
   if(BGMAP.key===key) return BGMAP.cv;
-  const s=Math.min(1,900/Math.max(im.width,im.height)), cv=document.createElement('canvas');
+  const s=Math.min(1,lim/Math.max(im.width,im.height)), cv=document.createElement('canvas');
   cv.width=Math.max(1,Math.round(im.width*s)); cv.height=Math.max(1,Math.round(im.height*s));
   const c=cv.getContext('2d',{willReadFrequently:true});
   c.drawImage(im,0,0,cv.width,cv.height);
@@ -1052,7 +1061,7 @@ function render(cv,k,T,ui,scene){
   seq.forEach(s=>{
     if(s.kind==='ascii'){ batch.push(s.ps); return; }
     flush();
-    if(s.kind==='bg'){ drawBg(c,bgSource(scene.bgImg),w,h); return; }
+    if(s.kind==='bg'){ drawBg(c,bgSource(scene.bgImg,Math.max(w,h)*k),w,h); return; }
     if(!anyAscii&&ui&&!ph){ ph=true; drawPlaceholder(c,w,h,k); }
     drawLayer(c,s.L,T);
   });
@@ -1066,7 +1075,9 @@ function render(cv,k,T,ui,scene){
 
 /* ---------- prévia e animação ---------- */
 const pv=$('preview'); let raf=0, lastT=performance.now(), lastFrame=0;
-function pk(){ return Math.min(1,1300/Math.max(P.w,P.h)); }
+window.addEventListener('resize',()=>draw());
+// resolução da prévia: a altura visível na tela (com a densidade do monitor), limitada para não pesar
+function pk(){ const dpr=Math.min(2,window.devicePixelRatio||1), avail=Math.min(2000,Math.max(420,window.innerHeight-190))*dpr; return Math.min(1,avail/Math.max(P.w,P.h)); }
 const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches; st.playing=!reduce;
 function animOn(){ return fxOn().length>0 || st.layers.some(L=>L.visible&&L.fx&&L.fx!=='none'); }
 function animating(){ return st.playing && animOn(); }
@@ -1281,7 +1292,12 @@ function bindProp(id,key,parse,ev='input'){
     draw();
   });
 }
-function updateListItem(){ renderList(); }
+function updateListItem(){
+  const L=selLayer(), li=L&&$('layers').querySelector(`li[data-key="${tKey(L)}"]`);
+  if(!li){ renderList(); return; }
+  const sp=li.querySelector('.name span'); sp.textContent=layerName(L); sp.style.fontFamily=`"${L.font}", ${(FONTS[L.font]||FONTS.Archivo).fb}`;
+  li.querySelector('.name i').textContent=Math.round(L.size)+'px';
+}
 const num=el=>el.value===''?null:+el.value;
 bindProp('p-text','text',el=>el.value);
 bindProp('p-font','font',el=>el.value,'change');
@@ -1721,7 +1737,7 @@ function ensureFonts(){
   if(!document.fonts) return Promise.resolve();
   const reqs=new Set(['700 20px "JetBrains Mono"','700 20px "Archivo"']);
   st.layers.forEach(L=>reqs.add(`${L.italic?'italic ':''}${L.weight} 20px "${L.font}"`));
-  return Promise.all([...reqs].map(r=>document.fonts.load(r).catch(()=>{}))).then(()=>{ draw(); });
+  return Promise.all([...reqs].map(r=>document.fonts.load(r).catch(()=>{}))).then(()=>{ fontGen++; draw(); });
 }
 document.fonts && document.fonts.ready.then(()=>{ draw(); drawThumbs(); });
 
