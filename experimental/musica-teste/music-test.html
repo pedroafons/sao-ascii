@@ -1,0 +1,22 @@
+<!-- ===== TESTE: música e sincronização (experimental) — módulo separado ===== -->
+<div class="props mus-test" id="musBox">
+  <h3>Música <span class="tag">teste</span></h3>
+  <input id="musFile" type="file" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac,.flac" hidden>
+  <div class="two">
+    <button class="btn sm" id="musAdd">Adicionar música</button>
+    <button class="btn sm" id="musSync" aria-pressed="false" disabled>Sincronização: desligada</button>
+  </div>
+  <p class="hint" id="musInfo" style="margin:0">Nenhuma música carregada.</p>
+  <div class="inline">
+    <button class="btn sm" id="musPlay" disabled>Tocar</button>
+    <input id="musSeek" type="range" min="0" max="1" step="0.01" value="0" disabled style="flex:1">
+    <span id="musTime" class="hint">0:00</span>
+  </div>
+  <label class="f"><span class="row">Intensidade do ritmo <output id="o-musAmp"></output></span>
+    <input id="musAmp" type="range" min="0" max="1" step="0.01" value="0.6"></label>
+  <label class="check"><input id="musChars" type="checkbox" checked> Variar os caracteres</label>
+  <label class="check"><input id="musWave" type="checkbox" checked> Onda sonora (faixas de frequência viram ondas)</label>
+  <label class="check"><input id="musPulse" type="checkbox" checked> Pulsar na batida</label>
+  <button class="btn sm ghost" id="musRemove" disabled>Remover música</button>
+</div>
+<!-- ===== fim do teste de música ===== -->
