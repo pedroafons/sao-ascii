@@ -11,6 +11,7 @@ const fmtT=s=>{ s=Math.max(0,s||0); return Math.floor(s/60)+':'+String(Math.floo
 const ui={add:$('musAdd'),file:$('musFile'),sync:$('musSync'),play:$('musPlay'),seek:$('musSeek'),time:$('musTime'),info:$('musInfo'),amp:$('musAmp'),remove:$('musRemove')};
 
 /* FFT radix-2 (in place) */
+const clamp01=v=>Math.max(0,Math.min(1,v));
 function fft(re,im){
   const n=re.length;
   for(let i=1,j=0;i<n;i++){ let bit=n>>1; for(;j&bit;bit>>=1) j^=bit; j^=bit; if(i<j){ [re[i],re[j]]=[re[j],re[i]]; [im[i],im[j]]=[im[j],im[i]]; } }
@@ -58,13 +59,29 @@ function analyze(buf){
       lv[f*NB+k]=prev;
     }
   }
-  // fluxo espectral: quanto a energia subiu de um quadro para o outro (a "batida")
-  const flux=new Float32Array(F);
-  for(let f=1;f<F;f++){ let s=0; for(let k=0;k<NB;k++) s+=Math.max(0,lv[f*NB+k]-lv[(f-1)*NB+k]); flux[f]=s; }
-  const fs=Float32Array.from(flux).sort(), fref=fs[Math.floor(F*0.95)]||1e-9;
-  const pulse=new Float32Array(F); let pk=0;
-  for(let f=0;f<F;f++){ const v=Math.min(1,flux[f]/fref); pk=Math.max(v,pk*0.86); pulse[f]=pk; }
-  return {F,lv,pulse,dur:len/sr};
+  // ataques de cada instrumento: bumbo = graves (faixas 0-1); caixa = médios (faixas 3-5)
+  const fluxK=new Float32Array(F), fluxS=new Float32Array(F);
+  for(let f=1;f<F;f++){
+    let k=0, s=0;
+    for(let b=0;b<NB;b++){
+      const d=Math.max(0,lv[f*NB+b]-lv[(f-1)*NB+b]);
+      if(b<=1) k+=d;
+      if(b>=3&&b<=5) s+=d; // caixa: médios (360 Hz a 2,8 kHz); o chimbal, mais agudo, não entra
+    }
+    fluxK[f]=k; fluxS[f]=s;
+  }
+  // envoltória: ataque imediato (no quadro da batida) e queda rápida; só o que passa do piso de ruído conta
+  const envelope=(flux,decay)=>{
+    const sorted=Float32Array.from(flux).sort(), ref=sorted[Math.floor(F*0.9)]||1e-9;
+    const out=new Float32Array(F); let pk=0;
+    for(let f=0;f<F;f++){
+      const v=clamp01((flux[f]/ref-0.35)/0.65);
+      pk=Math.max(v,pk*decay); out[f]=pk;
+    }
+    return out;
+  };
+  const kick=envelope(fluxK,0.78), snare=envelope(fluxS,0.72);
+  return {F,lv,kick,snare,dur:len/sr};
 }
 
 /* ----- ganchos para o editor ----- */
@@ -74,14 +91,14 @@ MUS_HOOK.time=()=>audio.currentTime;
 // colunas do quadro: faixas graves à esquerda, agudas à direita, + pulso e variação de caracteres
 MUS_HOOK.frame=cols=>{
   if(!MUS_HOOK.active()) return null;
-  const F=MT.feat, f=Math.min(F.F-1,Math.max(0,Math.floor(st.mt*HZ)));
+  const F=MT.feat, f=Math.min(F.F-1,Math.max(0,Math.floor((st.mt+0.02)*HZ))); // +20 ms: compensa o atraso do áudio
   const col=new Float32Array(cols);
   for(let x=0;x<cols;x++){
     const p=cols>1?x/(cols-1)*(NB-1):0, k0=Math.min(NB-2,Math.floor(p)), fr=p-k0;
     col[x]=F.lv[f*NB+k0]*(1-fr)+F.lv[f*NB+k0+1]*fr;
   }
   return {col, amp:+ui.amp.value, wave:$('musWave').checked, chars:$('musChars').checked,
-          pulse:$('musPulse').checked?F.pulse[f]:0, high:(F.lv[f*NB+5]+F.lv[f*NB+6]+F.lv[f*NB+7])/3, tick:f};
+          kick:$('musPulse').checked?F.kick[f]:0, snare:$('musPulse').checked?F.snare[f]:0, high:(F.lv[f*NB+5]+F.lv[f*NB+6]+F.lv[f*NB+7])/3, tick:f};
 };
 // gravação de vídeo: o áudio da música entra no arquivo, começando na posição atual
 MUS_HOOK.recStart=()=>{
